@@ -5,13 +5,13 @@
 ### Sensors and components
 * RFID: RFIDRW-E-TTL (Priority1design)
 * Temperature and Humidity: DHT22
-* Amplifier and Load Cell (Weight): HX711 and 3kg Load Cell
+* Weight (Amplifier and Load Cell): HX711 and 3kg Load Cell
 * Real Time Clock: DS3231
 * GSM: SIM900 GPRS Shield
 
 ### Libraries
 * RFID: SoftwareSerial
 * Temperature and Humidity: SimpleDHT
-* Amplifier and Load Cell (Weight): Queuetue_HX711_Library (modified) & HX711_ADC (not used)
+* Weight (Amplifier and Load Cell): Queuetue_HX711_Library (modified) & HX711_ADC (not used)
 * Real Time Clock: DS3231
 * GSM: GSM
