@@ -1,4 +1,4 @@
-package TextMessageToStorage;
+package server;
 
 import com.twilio.twiml.MessagingResponse;
 import com.twilio.twiml.messaging.Body;
@@ -8,7 +8,7 @@ import static spark.Spark.*;
 //import static spark.Spark.get;
 //import static spark.Spark.post;
 
-public class SMSReceiver {
+public class TestResponder {
     public static void main(String[] args) {
         get("/", (req, res) -> "Hello Web");
 

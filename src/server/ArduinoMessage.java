@@ -1,4 +1,4 @@
-package TextMessageToStorage;
+package server;
 
 /**
  * Class to define the structure of a text message sent from the
@@ -11,6 +11,18 @@ public class ArduinoMessage {
 	 * The number of sensor readings sent in the text message.
 	 */
 	private static final int NUMBER_OF_SENSOR_READINGS = 4;
+	/**
+	 * Maximum temperature before reading or value is incorrect (Mauritius highest 40C).
+	 */
+	private static final int MAX_TEMPERATURE = 60;
+	/**
+	 * Minimum temperature before reading or value is incorrect (Mauritius lowest 5C).
+	 */
+	private static final int MIN_TEMPERATURE = -10;
+	/**
+	 * Separator for a comma separator value.
+	 */
+	private static final String CSV_SEPARATOR = ",";
 	
 	private String messageSid;
 	private String phoneNumber;
@@ -20,36 +32,26 @@ public class ArduinoMessage {
 	private Float weight;
 	
 	/**
-	 * Constructor to assign message Sid and from phone number.
-	 * @param messageSid The Sid of the message.
-	 * @param phoneNumber The received from phone number.
+	 * Constructor to parse a CSV line from either an incoming text message or the storage file.
+	 * @param CSVString The line of CSV data from a text message or the storage file.
 	 */
-	public ArduinoMessage(String messageSid, String phoneNumber, String bodyText) {
-		this.messageSid = messageSid;
-		this.phoneNumber = phoneNumber;
+	public ArduinoMessage(String CSVString) {
+		this.messageSid = null;
+		this.phoneNumber = null;
 		this.epochMillis = null;
 		this.RFID = null;
 		this.temperature = null;
 		this.weight = null;
 		
-		this.parseCSVString(bodyText);
-	}
-	
-	public ArduinoMessage(String messageSid, String phoneNumber, long epochMillis, 
-						  String RFID, float temperature, float weight) {
-		this.messageSid = messageSid;
-		this.phoneNumber = phoneNumber;
-		this.epochMillis = epochMillis;
-		this.RFID = RFID;
-		this.temperature = temperature;
-		this.weight = weight;
+		// Parse CSV text into variable values
+		this.parseCSVText(CSVString);
 	}
 	
 	/**
-	 * Function to parse an incoming text message body.
-	 * @param textMessageBody The body of text message to parse.
+	 * Function to parse an incoming text message body that is in CSV format.
+	 * @param textMessageBody The body of a text message to parse.
 	 */
-	public void parseCSVString(String textMessageBody) {
+	public void parseCSVText(String textMessageBody) {
 		// Check body is not null
 		if (textMessageBody != null) {
 			// Check body is a CSV string
@@ -66,6 +68,65 @@ public class ArduinoMessage {
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Function to check all data variables are not null.
+	 * @return True if all variables are available, false if not.
+	 */
+	public boolean checkDataExists() {
+		if (this.messageSid == null) {
+			return false;
+		}
+		if (this.phoneNumber == null) {
+			return false;
+		}
+		if (this.epochMillis == null) {
+			return false;
+		} 
+		else if (this.epochMillis.longValue() <= 0) {
+			return false;
+		}
+		if (this.RFID == null) {
+			return false;
+		}
+		if (this.temperature == null) {
+			return false;
+		}
+		else if ((this.temperature.floatValue() < MIN_TEMPERATURE) || 
+				 (this.temperature.floatValue() > MAX_TEMPERATURE)) {
+			return false;
+		}
+		if (this.weight == null) {
+			return false;
+		}
+		else if (this.weight.floatValue() < 0) {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	/**
+	 * Function to parse all variables to a CSV string.
+	 * @return A CSV string containing all data from variables.
+	 */
+	public String parseToCSVString() {
+		StringBuilder CSVString = new StringBuilder();
+		
+		CSVString.append(this.messageSid);
+		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.phoneNumber);
+		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.epochMillis.longValue());
+		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.RFID);
+		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.temperature.floatValue());
+		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.weight.floatValue());
+		
+		return CSVString.toString(); 
 	}
 	
 	/**

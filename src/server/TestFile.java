@@ -1,10 +1,10 @@
-package TextMessageToStorage;
+package server;
 
 import com.twilio.Twilio;
 import com.twilio.base.ResourceSet;
 import com.twilio.rest.api.v2010.account.Message;
 
-public class Example {
+public class TestFile {
 	// Find your Account Sid and Auth Token at twilio.com/console
 	public static final String ACCOUNT_SID = "AC397aad87594399d53155d77917a49b37";
 	public static final String AUTH_TOKEN = System.getenv("TWILIO_AUTH_TOKEN");

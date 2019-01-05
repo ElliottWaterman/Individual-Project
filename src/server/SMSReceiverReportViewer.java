@@ -1,4 +1,4 @@
-package TextMessageToStorage;
+package server;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -31,7 +31,7 @@ import org.apache.http.client.utils.URLEncodedUtils;
  * 
  * @author Elliott Waterman
  */
-public class StoreIncomingSMS {
+public class SMSReceiverReportViewer {
 	
 	/**
 	 * A TwiML XML string that defines when no message is sent as a response.
@@ -41,7 +41,11 @@ public class StoreIncomingSMS {
 	/**
 	 * Data storage file for the Smart Boa snake basking station.
 	 */
-	private static final File STORAGE_FILE = new File("SBSBS.json");
+	private static final File STORAGE_FILE = new File("SBSBS.csv");
+	/**
+	 * Separator for a comma separator value.
+	 */
+	private static final String CSV_SEPARATOR = ",";
 	
 	/**
 	 * Java main function to run.
@@ -49,7 +53,41 @@ public class StoreIncomingSMS {
 	 */
     public static void main(String[] args) {
     	// GET requests
-        get("/", (req, res) -> "Hello Web");
+        get("/", (req, res) -> {
+        	// Read in data from CSVstorage file
+        	ArrayList<ArduinoMessage> listOfMessages = readCSVFile();
+        	
+        	// Create HTML page here
+        	StringBuilder htmlBase = new StringBuilder("<!doctype html><html lang=\"en\">" +
+        		"<head>" +
+        		  "<meta charset=\"utf-8\">" +
+				  "<title>Smart Boa Snake Basking Station Data Report</title>" +
+				  "<meta name=\"description\" content=\"Data report utilising SMS received from the smart basking station\">" +
+				  "<meta name=\"author\" content=\"Elliott Waterman\">" +
+				  //"<link rel=\"stylesheet\" href=\"styles.css\">" +
+				  "<link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/tabulator/4.1.4/css/tabulator.min.css\">" +
+				  "<script type=\"text/javascript\" src=\"https://cdnjs.cloudflare.com/ajax/libs/tabulator/4.1.4/js/tabulator.min.js\"></script>" +
+				  "<script type=\"text/javascript\" src=\"assets/main.js\"" +
+				"</head>" +
+				"<body>");
+        	
+    		// Read data in and parse to HTML
+			for (ArduinoMessage message : listOfMessages) {
+				//htmlBase.append();
+				message.getMessageSid();
+	            message.getPhoneNumber();
+	            message.getEpochMillis();
+	            message.getRFID();
+	            message.getTemperature();
+	            message.getWeight();
+			}
+			
+			// Add body end and HTML end
+			htmlBase.append("<div id=\"report-table\"></div></body></html>");
+        	
+			// Return completed HTML string
+        	return htmlBase.toString();
+        });
         // TODO: Display all stored text data
 
         // POST requests
@@ -81,8 +119,16 @@ public class StoreIncomingSMS {
             System.out.println("From Phone Number: " + fromPhoneNumber);
             System.out.println("Message Body: " + bodyText);
             
+            // Create complete CSV line of data
+            StringBuilder CSVLine = new StringBuilder();
+            CSVLine.append(messageSid);
+            CSVLine.append(CSV_SEPARATOR);
+            CSVLine.append(fromPhoneNumber);
+            CSVLine.append(CSV_SEPARATOR);
+            CSVLine.append(bodyText);
+            
             // Parse map of message parameters to Arduino Message class object
-            ArduinoMessage message = new ArduinoMessage(messageSid, fromPhoneNumber, bodyText);
+            ArduinoMessage message = new ArduinoMessage(CSVLine.toString());
             System.out.println(message.getMessageSid());
             System.out.println(message.getPhoneNumber());
             System.out.println(message.getEpochMillis());
@@ -114,8 +160,8 @@ public class StoreIncomingSMS {
             // Store to JSON
             try {
             	// Append message to storage file
-            	appendJSON(message);
-            	System.out.println("Arduino Message saved to JSON file.");
+            	appendCSVFile(message);
+            	System.out.println("Arduino Message saved to storage file.");
             	System.out.println(STORAGE_FILE.getAbsolutePath());
             	System.out.println("");
             } catch (IOException ioXcp) {
@@ -140,6 +186,68 @@ public class StoreIncomingSMS {
         }
         return mapToReturn;
     }
+    
+    /**
+     * Function to append a single message to the storage file.
+     * @param message A single message to be stored.
+     * @return True if the message was appended, exception if not.
+     * @throws IOException An IO exception caused by file writer.
+     */
+    private static boolean appendCSVFile(ArduinoMessage message) throws IOException {
+    	if (message == null) {
+    		return false;
+    	}
+    	if (!message.checkDataExists()) {
+    		return false;
+    	}
+    	
+    	String CSVString = message.parseToCSVString();
+    	
+    	// Create file writer with path to the storage file (true appends to end)
+    	FileWriter writer = new FileWriter(STORAGE_FILE, true);
+    	writer.append(CSVString);
+    	writer.append(System.lineSeparator());
+    	writer.close();
+    	
+    	return true;
+    }
+    
+    /**
+     * Function to append a single message to the storage file.
+     * @param message A single message to be stored.
+     * @return True if the message was appended, exception if not.
+     * @throws IOException An IO exception caused by file writer.
+     */
+    private static ArrayList<ArduinoMessage> readCSVFile() throws IOException {
+    	// Create arraylist of Arduino messages
+    	ArrayList<ArduinoMessage> listOfMessages = new ArrayList<ArduinoMessage>();
+    	
+    	// Create buffered reader and file reader with a path to the storage file
+    	BufferedReader bufferedReader = new BufferedReader(new FileReader(STORAGE_FILE));
+    	
+    	// Read first line from CSV file
+    	String inputLine = bufferedReader.readLine();
+    	
+    	// Loop while more lines are to be read
+    	while (inputLine != null) {
+    		// Create new arduino message and fill with values
+    		ArduinoMessage message = new ArduinoMessage(inputLine);
+    		
+    		// Add message to the list of messages
+    		listOfMessages.add(message);
+    		
+    		// Read next line of data before loop ends
+    		inputLine = bufferedReader.readLine();
+    	}
+    	
+    	bufferedReader.close();
+    	
+    	return listOfMessages;
+    }
+    
+    
+    
+    // TODO: Remove below
     
     /**
      * Function to write a list of message to a JSON file.
