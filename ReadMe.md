@@ -16,7 +16,7 @@
 * Real Time Clock: DS3231
 * GSM: GSM
 
-## Twilio SMS receiver server
+## Twilio Server: SMS Receiver and Report Viewer
 
 * Java application using Twilio API to create SMS receiving server
 * ngrok program used to tunnel localhost port to a secure URL
