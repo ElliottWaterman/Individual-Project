@@ -3,12 +3,15 @@ package server;
 /**
  * Class to define the structure of a text message sent from the
  * Arduino / SIM900 module that contains sensor data.
- * 
  * @author Elliott Waterman
  */
 public class ArduinoMessage {
 	/**
-	 * The number of sensor readings sent in the text message.
+	 * The number of identity parameters in an arduino message.
+	 */
+	private static final int NUMBER_OF_PARAMETERS = 2;
+	/**
+	 * The number of sensor readings sent in a text message.
 	 */
 	private static final int NUMBER_OF_SENSOR_READINGS = 4;
 	/**
@@ -33,7 +36,7 @@ public class ArduinoMessage {
 	
 	/**
 	 * Constructor to parse a CSV line from either an incoming text message or the storage file.
-	 * @param CSVString The line of CSV data from a text message or the storage file.
+	 * @param CSVString A CSV data line from a text message or storage file.
 	 */
 	public ArduinoMessage(String CSVString) {
 		this.messageSid = null;
@@ -48,23 +51,25 @@ public class ArduinoMessage {
 	}
 	
 	/**
-	 * Function to parse an incoming text message body that is in CSV format.
-	 * @param textMessageBody The body of a text message to parse.
+	 * Function to parse an incoming text message body or storage file line that is in CSV format.
+	 * @param CSVText An incoming text message or storage file line to parse.
 	 */
-	public void parseCSVText(String textMessageBody) {
-		// Check body is not null
-		if (textMessageBody != null) {
-			// Check body is a CSV string
-			if (textMessageBody.contains(",")) {
-				// Split body by comma
-				String sensorReadings[] = textMessageBody.split(",");
-				// Check number of sensor readings match the defined amount
-				if (sensorReadings.length == NUMBER_OF_SENSOR_READINGS) {
-					// Parse strings and assign sensor readings to variables  
-					this.epochMillis = convertStringToLong(sensorReadings[0]);
-					this.RFID = sensorReadings[1];
-					this.temperature = convertStringToFloat(sensorReadings[2]);
-					this.weight = convertStringToFloat(sensorReadings[3]);
+	public void parseCSVText(String CSVText) {
+		// Check string is not null
+		if (CSVText != null) {
+			// Check string is a CSV line
+			if (CSVText.contains(",")) {
+				// Split CSV data by comma
+				String CSVParameters[] = CSVText.split(",");
+				// Check number of parameters and sensor readings match the defined amount
+				if (CSVParameters.length == (NUMBER_OF_PARAMETERS + NUMBER_OF_SENSOR_READINGS)) {
+					// Parse each string and assign parameter and sensor readings to variables  
+					this.messageSid = CSVParameters[0];
+					this.phoneNumber = CSVParameters[1];
+					this.epochMillis = convertStringToLong(CSVParameters[2]);
+					this.RFID = CSVParameters[3];
+					this.temperature = convertStringToFloat(CSVParameters[4]);
+					this.weight = convertStringToFloat(CSVParameters[5]);
 				}
 			}
 		}

@@ -1,20 +1,17 @@
 package server;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 import com.twilio.twiml.MessagingResponse;
+
+import spark.Spark;
 import static spark.Spark.*;
 //import static spark.Spark.get;
 //import static spark.Spark.post;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,16 +25,17 @@ import org.apache.http.client.utils.URLEncodedUtils;
  * Class to receive and process Twilio Webhook GET and POST requests. Incoming text messages
  * to a Twilio phone number will run POST function on this local server. Use ngrok to give 
  * public address to this local server.
- * 
  * @author Elliott Waterman
  */
 public class SMSReceiverReportViewer {
-	
+	/**
+	 * Separator for a comma separator value.
+	 */
+	private static final int PORT_NUMBER = 4567;
 	/**
 	 * A TwiML XML string that defines when no message is sent as a response.
 	 */
 	private static final String NO_MESSAGE_REPLY = new MessagingResponse.Builder().build().toXml();
-	
 	/**
 	 * Data storage file for the Smart Boa snake basking station.
 	 */
@@ -48,49 +46,41 @@ public class SMSReceiverReportViewer {
 	private static final String CSV_SEPARATOR = ",";
 	
 	/**
-	 * Java main function to run.
+	 * Java main application class to run the environment and services.
 	 * @param args Any arguments passed to the program.
 	 */
     public static void main(String[] args) {
-    	// GET requests
+    	/**
+         * Sets the port in which the application will run.
+         */
+        port(PORT_NUMBER);
+    	
+        /**
+         * Specifies the directory within resources that will be publicly available when the
+         * application is running. Place static web files in this directory (JS, CSS).
+         */
+        //Spark.staticFileLocation("/public");
+        //Spark.staticFiles.location("/public");
+        Spark.staticFiles.externalLocation("C:\\Users\\Elliott\\Documents\\Eclipse\\workspace\\TwilioSMS");
+    	
+    	/**
+    	 * Function to serve a user request to GET an HTML document (website) for displaying 
+    	 * CSV data from the SBSBS in the form of a report.
+    	 */
         get("/", (req, res) -> {
         	// Read in data from CSVstorage file
         	ArrayList<ArduinoMessage> listOfMessages = readCSVFile();
         	
-        	// Create HTML page here
-        	StringBuilder htmlBase = new StringBuilder("<!doctype html><html lang=\"en\">" +
-        		"<head>" +
-        		  "<meta charset=\"utf-8\">" +
-				  "<title>Smart Boa Snake Basking Station Data Report</title>" +
-				  "<meta name=\"description\" content=\"Data report utilising SMS received from the smart basking station\">" +
-				  "<meta name=\"author\" content=\"Elliott Waterman\">" +
-				  //"<link rel=\"stylesheet\" href=\"styles.css\">" +
-				  "<link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/tabulator/4.1.4/css/tabulator.min.css\">" +
-				  "<script type=\"text/javascript\" src=\"https://cdnjs.cloudflare.com/ajax/libs/tabulator/4.1.4/js/tabulator.min.js\"></script>" +
-				  "<script type=\"text/javascript\" src=\"assets/main.js\"" +
-				"</head>" +
-				"<body>");
+        	// Create HTML report page
+        	String reportView = ReportGenerator.generateHTML(listOfMessages);
         	
-    		// Read data in and parse to HTML
-			for (ArduinoMessage message : listOfMessages) {
-				//htmlBase.append();
-				message.getMessageSid();
-	            message.getPhoneNumber();
-	            message.getEpochMillis();
-	            message.getRFID();
-	            message.getTemperature();
-	            message.getWeight();
-			}
-			
-			// Add body end and HTML end
-			htmlBase.append("<div id=\"report-table\"></div></body></html>");
-        	
-			// Return completed HTML string
-        	return htmlBase.toString();
+        	return reportView;
         });
-        // TODO: Display all stored text data
 
-        // POST requests
+        /**
+         * Function to serve a user request to POST an SMS text message, the text is sent 
+         * from an Arduino/SIM900 module, the SBSBS, and contains CSV data.
+         */
         post("/sms", (req, res) -> {
         	// By calling either req.body() or req.queryParams() the message is taken and cleared.
         	// This means that only one function should be used. The other function returns null!
@@ -157,13 +147,19 @@ public class SMSReceiverReportViewer {
             	return NO_MESSAGE_REPLY;
             }
             
-            // Store to JSON
+            // Store to CSV storage file
             try {
             	// Append message to storage file
-            	appendCSVFile(message);
-            	System.out.println("Arduino Message saved to storage file.");
-            	System.out.println(STORAGE_FILE.getAbsolutePath());
-            	System.out.println("");
+            	boolean fileSaved = appendCSVFile(message);
+            	if (fileSaved) {
+            		System.out.println("Arduino Message saved to storage file.");
+                	System.out.println(STORAGE_FILE.getAbsolutePath());
+                	System.out.println("");
+            	} else {
+            		System.out.println("Arduino Message could NOT be saved.");
+            		System.out.println("");
+            	}
+            	
             } catch (IOException ioXcp) {
             	// TODO: clean exit
             	ioXcp.printStackTrace();
@@ -248,73 +244,73 @@ public class SMSReceiverReportViewer {
     
     
     // TODO: Remove below
-    
-    /**
-     * Function to write a list of message to a JSON file.
-     * @param messageList The list of messages to be stored.
-     * @throws IOException An IO exception caused by file writer.
-     */
-    private static boolean writeJSON(List<ArduinoMessage> messageList) throws IOException {
-    	// Create Gson builder and create Gson object
-    	GsonBuilder builder = new GsonBuilder();
-    	Gson gson = builder.create();
-    	
-    	// Create file writer with a path to the storage file
-    	FileWriter writer = new FileWriter(STORAGE_FILE);
-    	
-    	// Write message list to the storage file
-    	writer.write(gson.toJson(messageList));
-    	writer.close();
-    	
-    	return true;
-	}
-    
-    /**
-     * Function to read a list of message from a JSON file.
-     * @return The list of messages read from a JSON file.
-     * @throws FileNotFoundException A file not found exception caused when storage file does not exist.
-     */
-    private static List<ArduinoMessage> readJSON() throws FileNotFoundException {
-    	// Create Gson builder and create Gson object
-    	GsonBuilder builder = new GsonBuilder();
-    	Gson gson = builder.create();
-    	
-    	// Create buffered reader and file reader with a path to the storage file
-    	BufferedReader bufferedReader = new BufferedReader(new FileReader(STORAGE_FILE));
-    	
-    	// Find the type of list the messages are in
-    	Type messageListType = new TypeToken<ArrayList<ArduinoMessage>>(){}.getType();
-    	
-    	// Read a list of messages from the storage file
-    	List<ArduinoMessage> messageList = gson.fromJson(bufferedReader, messageListType);
-    	return messageList;
-    }
-    
-    /**
-     * Function to write a single message to a JSON file containing a list of messages.
-     * @param message A single message to be stored.
-     * @throws IOException An IO exception caused by file writer.
-     */
-    private static boolean appendJSON(ArduinoMessage message) throws IOException {
-    	// Create Gson builder and create Gson object
-    	GsonBuilder builder = new GsonBuilder();
-    	Gson gson = builder.create();
-    	
-    	// Create file writer with path to the storage file (true appends to end)
-    	FileWriter writer = new FileWriter(STORAGE_FILE, true);
-    	
-    	// Find the type of list the messages are in
-    	Type messageListType = new TypeToken<ArrayList<ArduinoMessage>>(){}.getType();
-    	
-    	// Append a message to the storage file
-    	ArrayList<ArduinoMessage> messageList = new ArrayList<ArduinoMessage>();
-    	messageList.add(message);
-    	writer.append(gson.toJson(messageList, messageListType));
-    	writer.close();
-    	
-    	// TODO: Currently just adds a new "list" to JSON file rather than append a single message
-    	
-    	return true;
-	}
-    
+//    
+//    /**
+//     * Function to write a list of message to a JSON file.
+//     * @param messageList The list of messages to be stored.
+//     * @throws IOException An IO exception caused by file writer.
+//     */
+//    private static boolean writeJSON(List<ArduinoMessage> messageList) throws IOException {
+//    	// Create Gson builder and create Gson object
+//    	GsonBuilder builder = new GsonBuilder();
+//    	Gson gson = builder.create();
+//    	
+//    	// Create file writer with a path to the storage file
+//    	FileWriter writer = new FileWriter(STORAGE_FILE);
+//    	
+//    	// Write message list to the storage file
+//    	writer.write(gson.toJson(messageList));
+//    	writer.close();
+//    	
+//    	return true;
+//	}
+//    
+//    /**
+//     * Function to read a list of message from a JSON file.
+//     * @return The list of messages read from a JSON file.
+//     * @throws FileNotFoundException A file not found exception caused when storage file does not exist.
+//     */
+//    private static List<ArduinoMessage> readJSON() throws FileNotFoundException {
+//    	// Create Gson builder and create Gson object
+//    	GsonBuilder builder = new GsonBuilder();
+//    	Gson gson = builder.create();
+//    	
+//    	// Create buffered reader and file reader with a path to the storage file
+//    	BufferedReader bufferedReader = new BufferedReader(new FileReader(STORAGE_FILE));
+//    	
+//    	// Find the type of list the messages are in
+//    	Type messageListType = new TypeToken<ArrayList<ArduinoMessage>>(){}.getType();
+//    	
+//    	// Read a list of messages from the storage file
+//    	List<ArduinoMessage> messageList = gson.fromJson(bufferedReader, messageListType);
+//    	return messageList;
+//    }
+//    
+//    /**
+//     * Function to write a single message to a JSON file containing a list of messages.
+//     * @param message A single message to be stored.
+//     * @throws IOException An IO exception caused by file writer.
+//     */
+//    private static boolean appendJSON(ArduinoMessage message) throws IOException {
+//    	// Create Gson builder and create Gson object
+//    	GsonBuilder builder = new GsonBuilder();
+//    	Gson gson = builder.create();
+//    	
+//    	// Create file writer with path to the storage file (true appends to end)
+//    	FileWriter writer = new FileWriter(STORAGE_FILE, true);
+//    	
+//    	// Find the type of list the messages are in
+//    	Type messageListType = new TypeToken<ArrayList<ArduinoMessage>>(){}.getType();
+//    	
+//    	// Append a message to the storage file
+//    	ArrayList<ArduinoMessage> messageList = new ArrayList<ArduinoMessage>();
+//    	messageList.add(message);
+//    	writer.append(gson.toJson(messageList, messageListType));
+//    	writer.close();
+//    	
+//    	// TODO: Currently just adds a new "list" to JSON file rather than append a single message
+//    	
+//    	return true;
+//	}
+//    
 }	// End class StoreIncomingSMS

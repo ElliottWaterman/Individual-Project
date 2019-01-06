@@ -18,6 +18,6 @@
 
 ## Twilio Server: SMS Receiver and Report Viewer
 
-* Java application using Twilio API to create SMS receiving server
+* Java application using Twilio API to create SMS receiving server and data report viewer
 * ngrok program used to tunnel localhost port to a secure URL
 * ngrok connects Java server on port 4567 to a secure URL
