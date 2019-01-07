@@ -7,12 +7,15 @@ import static spark.Spark.*;
 //import static spark.Spark.get;
 //import static spark.Spark.post;
 
+import java.awt.Image;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,9 +62,7 @@ public class SMSReceiverReportViewer {
          * Specifies the directory within resources that will be publicly available when the
          * application is running. Place static web files in this directory (JS, CSS).
          */
-        //Spark.staticFileLocation("/public");
-        //Spark.staticFiles.location("/public");
-        Spark.staticFiles.externalLocation("C:\\Users\\Elliott\\Documents\\Eclipse\\workspace\\TwilioSMS");
+        Spark.staticFiles.location("/assets");
     	
     	/**
     	 * Function to serve a user request to GET an HTML document (website) for displaying 
@@ -75,6 +76,13 @@ public class SMSReceiverReportViewer {
         	String reportView = ReportGenerator.generateHTML(listOfMessages);
         	
         	return reportView;
+        });
+        
+        /**
+         * Function to serve a user the favicon of the website.
+         */
+        get("/favicon.ico", (req, res) -> {
+        	return Files.readAllBytes(new File("assets/favicon.ico").toPath());
         });
 
         /**
