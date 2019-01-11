@@ -25,6 +25,11 @@ SimpleDHT22 DHT22(PIN_DHT22);   //Controls the DHT22 module
 File storageFile;               //Controls writing to the SD card
 
 /* VARIABLES */
+float dht22_temperature;
+float dht22_humidity;
+int dht22_error = SimpleDHTErrSuccess;
+
+
 
 void setup() {
   Serial.begin(115200);               //Start serial communication
@@ -51,8 +56,6 @@ void setup() {
   // enable interrupt output for Alarm 1
   RTC.alarmInterrupt(ALARM_1, true);
 
-  dht.begin();//Start the DHT sensor
-
   /**Initializes the SD breakout board. If it is not ready or not connected correct it writes
      an error message to the serial monitor
    **/
@@ -67,6 +70,8 @@ void setup() {
 void loop() {
   delay(5000);//wait 5 seconds before going to sleep. In real senairio keep this as small as posible
   Going_To_Sleep();
+
+  //dht22ReadFromSensor();
 }
 
 void Going_To_Sleep() {
@@ -99,24 +104,20 @@ void wakeUp() {
   detachInterrupt(0); //Removes the interrupt from pin 2;
 }
 
-//This function reads the temperature and humidity from the DHT sensor
-void temp_Humi() {
-  // Reading temperature or humidity takes about 250 milliseconds!
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();//reads humidity
-  // Read temperature as Celsius (the default)
-  float t = dht.readTemperature();
-  // Read temperature as Fahrenheit (isFahrenheit = true)
-  float f = dht.readTemperature(true);
-  writeData(h, t, f); //sends the data to the writeData function
-  Serial.print("Humidity: ");
-  Serial.print(h);
-  Serial.print(" %\t");
-  Serial.print("Temperature: ");
-  Serial.print(t);
-  Serial.print(" *C ");
-  Serial.print(f);
-  Serial.print(" *F\t");
+/**
+ * Function to read the temperature and humidity of the DHT22 sensor.
+ */
+void dht22ReadFromSensor() {
+  //Read from the DHT22 sensor and assign values into variables, NULL is meant for raw data array.
+  int function_success = DHT22.read2(&dht22_temperature, &dht22_humidity, NULL);
+  //Check return value is NOT equal to constant for success
+  if (function_success != SimpleDHTErrSuccess) {
+    Serial.print("Read DHT22 failed, err=");
+    Serial.println(function_success);
+    //delay(2000);
+    return;
+  }
+  //TODO: Could return success value?
 }
 
 /**
