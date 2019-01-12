@@ -23,9 +23,9 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 
 /**
- * Class to receive and process Twilio Webhook GET and POST requests. Incoming text messages
- * to a Twilio phone number will run POST function on this local server. Use ngrok to give 
- * public address to this local server.
+ * Class to receive and process Twilio Webhook GET and POST requests. Incoming 
+ * text messages to a Twilio phone number will run POST function on this local 
+ * server. Use ngrok to give public address to this local server.
  * @author Elliott Waterman
  */
 public class SMSReceiverReportViewer {
@@ -36,7 +36,8 @@ public class SMSReceiverReportViewer {
 	/**
 	 * A TwiML XML string that defines when no message is sent as a response.
 	 */
-	private static final String NO_MESSAGE_REPLY = new MessagingResponse.Builder().build().toXml();
+	private static final String NO_MESSAGE_REPLY = 
+		new MessagingResponse.Builder().build().toXml();
 	/**
 	 * Data storage file for the Smart Boa snake basking station.
 	 */
@@ -57,14 +58,28 @@ public class SMSReceiverReportViewer {
         port(PORT_NUMBER);
     	
         /**
-         * Specifies the directory within resources that will be publicly available when the
-         * application is running. Place static web files in this directory (JS, CSS).
+         * Specifies the directory within resources that will be publicly 
+         * available when the application is running. Place static web files in 
+         * this directory (JS, CSS).
          */
         Spark.staticFiles.location("/assets");
     	
+        /**
+         * During setup of the server the storage file must exist and be 
+         * accessible.
+         */
+        try {
+			while (!checkStorageFile()) {
+				System.out.print("Checking Storage File: ");
+				System.out.println(STORAGE_FILE.toString());
+			}
+		} catch (IOException ioXcp) {
+			ioXcp.printStackTrace();
+		}
+        
     	/**
-    	 * Function to serve a user request to GET an HTML document (website) for displaying 
-    	 * CSV data from the SBSBS in the form of a report.
+    	 * Function to serve a user request to GET an HTML document (website) 
+    	 * for displaying CSV data from the SBSBS in the form of a report.
     	 */
         get("/", (req, res) -> {
         	// Read in data from CSVstorage file
@@ -84,20 +99,24 @@ public class SMSReceiverReportViewer {
         });
 
         /**
-         * Function to serve a user request to POST an SMS text message, the text is sent 
-         * from an Arduino/SIM900 module, the SBSBS, and contains CSV data.
+         * Function to serve a user request to POST an SMS text message, the 
+         * text is sent from an Arduino/SIM900 module, the SBSBS, and contains 
+         * CSV data.
          */
         post("/sms", (req, res) -> {
-        	// By calling either req.body() or req.queryParams() the message is taken and cleared.
-        	// This means that only one function should be used. The other function returns null!
+        	// By calling either req.body() or req.queryParams() the message is 
+        	// taken and cleared. This means that only one function should be 
+        	// used. The other function returns null!
 
-        	// Get the name value pairs of message parameters (includes text message body)
+        	// Get the name value pairs of message parameters (includes text 
+        	// message body)
         	String messageParameters = req.body();
         	System.out.println("Message Parameters:");
         	System.out.println(messageParameters);
         	
         	// Parse the information into a list of name value pairs
-        	List<NameValuePair> listOfPairs = URLEncodedUtils.parse(messageParameters, Charset.defaultCharset());
+        	List<NameValuePair> listOfPairs = 
+    			URLEncodedUtils.parse(messageParameters, Charset.defaultCharset());
         	System.out.println("Number of parameter pairs: " + listOfPairs.size());
         	
         	// Convert the list into a map of string pairs
@@ -107,7 +126,9 @@ public class SMSReceiverReportViewer {
             String messageSid = parameterMap.get("MessageSid");
             String fromPhoneNumber = parameterMap.get("From");
             String bodyText = parameterMap.get("Body");
-            if ((messageSid == null) || (fromPhoneNumber == null) || (bodyText == null)) {
+            if ((messageSid == null) || 
+        		(fromPhoneNumber == null) || 
+        		(bodyText == null)) {
             	// TODO: Store received message anyway
             	return NO_MESSAGE_REPLY;
             }
@@ -132,29 +153,12 @@ public class SMSReceiverReportViewer {
             System.out.println(message.getTemperature());
             System.out.println(message.getWeight());
             
-            // Check storage file exists
-            if (!STORAGE_FILE.exists()) {
-            	// Create a new file
-            	STORAGE_FILE.createNewFile();
-            }
-            // Check storage file is a file
-            if (!STORAGE_FILE.isFile()) {
-            	// TODO: clean exit
-            	return NO_MESSAGE_REPLY;
-            }
-            // Check storage file can be read
-            if (!STORAGE_FILE.canRead()) {
-            	// TODO: clean exit
-            	return NO_MESSAGE_REPLY;
-            }
-            // Check storage file can be written to
-            if (!STORAGE_FILE.canWrite()) {
-            	// TODO: clean exit
-            	return NO_MESSAGE_REPLY;
-            }
-            
             // Store to CSV storage file
             try {
+            	// Check storage file exists, can be read, can be written to
+            	if (!checkStorageFile()) {
+    				return NO_MESSAGE_REPLY;
+    			}
             	// Append message to storage file
             	boolean fileSaved = appendCSVFile(message);
             	if (fileSaved) {
@@ -165,7 +169,6 @@ public class SMSReceiverReportViewer {
             		System.out.println("Arduino Message could NOT be saved.");
             		System.out.println("");
             	}
-            	
             } catch (IOException ioXcp) {
             	// TODO: clean exit
             	ioXcp.printStackTrace();
@@ -177,6 +180,32 @@ public class SMSReceiverReportViewer {
     }
     
     /**
+     * Function to check the storage file and create a new one if it does not 
+     * exist.
+     * @throws IOException An exception caused by creating a new file.
+     */
+    private static boolean checkStorageFile() throws IOException {
+    	// Check storage file exists
+        if (!STORAGE_FILE.exists()) {
+        	// Create a new file
+        	STORAGE_FILE.createNewFile();
+        }
+        // Check storage file is a file (should not occur)
+        if (!STORAGE_FILE.isFile()) {
+        	return false;
+        }
+        // Check storage file can be read
+        if (!STORAGE_FILE.canRead()) {
+        	return false;
+        }
+        //Check storage file can be written to
+        if (!STORAGE_FILE.canWrite()) {
+        	return false;
+        }
+		return true;
+	}
+    
+	/**
      * Function to convert a List of name value pairs into a Map of string pairs.
      * @param listOfPairs List of name value pairs.
      * @return A Map of key and value strings.
@@ -205,7 +234,7 @@ public class SMSReceiverReportViewer {
     	
     	String CSVString = message.parseToCSVString();
     	
-    	// Create file writer with path to the storage file (true appends to end)
+    	// Create file writer with path to storage file (true appends to end)
     	FileWriter writer = new FileWriter(STORAGE_FILE, true);
     	writer.append(CSVString);
     	writer.append(System.lineSeparator());
@@ -222,10 +251,12 @@ public class SMSReceiverReportViewer {
      */
     private static ArrayList<ArduinoMessage> readCSVFile() throws IOException {
     	// Create arraylist of Arduino messages
-    	ArrayList<ArduinoMessage> listOfMessages = new ArrayList<ArduinoMessage>();
+    	ArrayList<ArduinoMessage> listOfMessages = 
+			new ArrayList<ArduinoMessage>();
     	
-    	// Create buffered reader and file reader with a path to the storage file
-    	BufferedReader bufferedReader = new BufferedReader(new FileReader(STORAGE_FILE));
+    	// Create buffered and file reader with a path to the storage file
+    	BufferedReader bufferedReader = 
+			new BufferedReader(new FileReader(STORAGE_FILE));
     	
     	// Read first line from CSV file
     	String inputLine = bufferedReader.readLine();
