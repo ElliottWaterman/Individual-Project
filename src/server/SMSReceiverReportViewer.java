@@ -13,7 +13,6 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,16 +61,25 @@ public class SMSReceiverReportViewer {
          * available when the application is running. Place static web files in 
          * this directory (JS, CSS).
          */
-        Spark.staticFiles.location("/assets");
+        File relativeLocation = new File("");
+        Spark.staticFiles.externalLocation(relativeLocation.getAbsolutePath());
+        //Spark.staticFiles.location("/assets");
+        // Use location for server files ie get("/main.js" etc)
     	
         /**
          * During setup of the server the storage file must exist and be 
          * accessible.
          */
         try {
-			while (!checkStorageFile()) {
+        	int tries = 5;
+			while (!checkStorageFile() && tries != 0) {
 				System.out.print("Checking Storage File: ");
 				System.out.println(STORAGE_FILE.toString());
+				tries--;
+			}
+			if (tries == 0) {
+				System.out.print("Could not create/load storage file!");
+				return;
 			}
 		} catch (IOException ioXcp) {
 			ioXcp.printStackTrace();
@@ -89,13 +97,6 @@ public class SMSReceiverReportViewer {
         	String reportView = ReportGenerator.generateHTML(listOfMessages);
         	
         	return reportView;
-        });
-        
-        /**
-         * Function to serve a user the favicon of the website.
-         */
-        get("/favicon.ico", (req, res) -> {
-        	return Files.readAllBytes(new File("assets/favicon.ico").toPath());
         });
 
         /**
