@@ -16,11 +16,17 @@
 /* DEFINES */
 #define PIN_WAKE_UP   2   //Interrupt pin (or #3) we are going to use to wake up the Arduino
 #define PIN_DHT22     3   //Digital pin connected to the DHT22 module
+#define PIN_SIM900_RX 6   //Receiving pin for the SIM900 module
+#define PIN_SIM900_TX 7   //Transmitting pin for the SIM900 module
+#define PIN_RFID_RX   8   //Receiving pin for the RFID module
+#define PIN_RFID_TX   9   //Transmitting pin for the RFID module
 #define PIN_SD        10  //Digital pin connected to the SD module
 #define TIME_INTERVAL 5   //Sets the wakeup intervall in minutes
 //#define EXAMPLE     1   //Comment
 
 /* INSTANTIATE LIBRARIES */
+SoftwareSerial RFID(PIN_RFID_RX, PIN_RFID_TX);        //Controls the RFID module
+SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
 SimpleDHT22 DHT22(PIN_DHT22);   //Controls the DHT22 module
 File storageFile;               //Controls writing to the SD card
 
@@ -29,8 +35,7 @@ float dht22_temperature;
 float dht22_humidity;
 int dht22_error = SimpleDHTErrSuccess;
 
-
-
+/* SETUP */
 void setup() {
   Serial.begin(115200);               //Start serial communication
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
@@ -67,6 +72,7 @@ void setup() {
   Serial.println("initialization done.");
 }
 
+/* LOOP */
 void loop() {
   delay(5000);//wait 5 seconds before going to sleep. In real senairio keep this as small as posible
   Going_To_Sleep();
@@ -74,6 +80,7 @@ void loop() {
   //dht22ReadFromSensor();
 }
 
+/* FUNCTIONS */
 void Going_To_Sleep() {
   sleep_enable();                       //Enabling sleep mode
   //Pin to detect change, method to call, the change to detect
