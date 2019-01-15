@@ -14,21 +14,21 @@
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 
 /* DEFINES */
-#define PIN_WAKE_UP   2   //Interrupt pin (or #3) we are going to use to wake up the Arduino
-#define PIN_DHT22     3   //Digital pin connected to the DHT22 module
-#define PIN_SIM900_RX 6   //Receiving pin for the SIM900 module
-#define PIN_SIM900_TX 7   //Transmitting pin for the SIM900 module
-#define PIN_RFID_RX   8   //Receiving pin for the RFID module
-#define PIN_RFID_TX   9   //Transmitting pin for the RFID module
-#define PIN_SD        10  //Digital pin connected to the SD module
-#define TIME_INTERVAL 5   //Sets the wakeup intervall in minutes
-//#define EXAMPLE     1   //Comment
+#define PIN_WAKE_UP     2   //Interrupt pin (or #3) we are going to use to wake up the Arduino
+#define PIN_DHT22       3   //Digital pin connected to the DHT22 module
+#define PIN_SIM900_RX   6   //Receiving pin for the SIM900 module
+#define PIN_SIM900_TX   7   //Transmitting pin for the SIM900 module
+#define PIN_RFID_RX     8   //Receiving pin for the RFID module
+#define PIN_RFID_TX     9   //Transmitting pin for the RFID module
+#define PIN_SD          10  //Digital pin connected to the SD module
+#define TIME_INTERVAL   5   //Sets the wakeup intervall in minutes
+//#define EXAMPLE       1   //Comment
 
 /* INSTANTIATE LIBRARIES */
 SoftwareSerial RFID(PIN_RFID_RX, PIN_RFID_TX);        //Controls the RFID module
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
 SimpleDHT22 DHT22(PIN_DHT22);   //Controls the DHT22 module
-File storageFile;               //Controls writing to the SD card
+//File storageFile;               //Controls writing to the SD card
 
 /* VARIABLES */
 float dht22_temperature;
@@ -38,6 +38,9 @@ int dht22_error = SimpleDHTErrSuccess;
 /* SETUP */
 void setup() {
   Serial.begin(115200);               //Start serial communication
+  RFID.begin(9600);
+  SIM900.begin(9600);
+  
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
   digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
@@ -64,16 +67,50 @@ void setup() {
   /**Initializes the SD breakout board. If it is not ready or not connected correct it writes
      an error message to the serial monitor
    **/
-  Serial.print("Initializing SD card...");
-  if (!SD.begin(chipSelect)) {
-    Serial.println("initialization failed!");
-    return;
-  }
-  Serial.println("initialization done.");
+//  Serial.print("Initializing SD card...");
+//  if (!SD.begin(chipSelect)) {
+//    Serial.println("initialization failed!");
+//    return;
+//  }
+//  Serial.println("initialization done.");
 }
 
 /* LOOP */
 void loop() {
+  RFID.listen();
+  char rfidTag[18];
+  int index = 0;
+  while(RFID.available() > 0) {
+    char inByte = RFID.read();
+    if (inByte != '\r' && index < 17) {
+      rfidTag[index++] = inByte;
+    }
+    else {
+      // Terminate buffer
+      rfidTag[index++] = '\0';
+    }
+  }
+  
+  SIM900.listen();
+  char response[18];
+  int index = 0;
+  while(SIM900.available() > 0) {
+    char inByte = SIM900.read();
+    if (inByte != '\r' && index < 17) {
+      response[index++] = inByte;
+    }
+    else {
+      // Terminate buffer
+      response[index++] = '\0';
+      if (response == "OK") {
+        // do something
+      }
+      else if (response == "ERR") {
+        // do something else
+      }
+    }
+  }
+  
   delay(5000);//wait 5 seconds before going to sleep. In real senairio keep this as small as posible
   Going_To_Sleep();
 
@@ -98,7 +135,7 @@ void Going_To_Sleep() {
   digitalWrite(LED_BUILTIN, HIGH);      //turning LED on
   t = RTC.get();
   Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
-  temp_Humi();                          //function that reads the temp and the humidity
+  //temp_Humi();                          //function that reads the temp and the humidity
   //Set New Alarm
   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + TIME_INTERVAL, 0, 0);
 
@@ -133,37 +170,37 @@ void dht22ReadFromSensor() {
    parameters. It uses the RTC to create a filename using the current date, and writes the temperature
    and humidity with a date stamp to this file
 */
-void writeData(float h, float t, float f) {
-  time_t p; //create time object for time and date stamp
-  p = RTC.get(); //gets the time from RTC
-  String file_Name = String(day(p)) + monthShortStr(month(p)) + String(year(p)) + ".txt"; //creates the file name we are writing to.
-  storageFile = SD.open(file_Name, FILE_WRITE);// creates the file object for writing
-
-  // if the file opened okay, write to it:
-  if (storageFile) {
-    Serial.print("Writing to " + file_Name);
-    //appends a line to the file with time stamp and humidity and temperature data
-    storageFile.println(String(hour(p)) + ":" + String(minute(p)) + " Hum: " + String(h) + "% C: " + String(t) + " F: " + String(f));
-    // close the file:
-    storageFile.close();
-    Serial.println("done.");
-  } else {
-    // if the file didn't open, print an error:
-    Serial.println("error opening " + file_Name);
-  }
-  //opening file for reading and writing content to serial monitor
-  storageFile = SD.open(file_Name);
-  if (storageFile) {
-    Serial.println(file_Name);
-
-    // read from the file until there's nothing else in it:
-    while (storageFile.available()) {
-      Serial.write(storageFile.read());
-    }
-    // close the file:
-    storageFile.close();
-  } else {
-    // if the file didn't open, print an error:
-    Serial.println("error opening" + file_Name);
-  }
-}
+//void writeData(float h, float t, float f) {
+//  time_t p; //create time object for time and date stamp
+//  p = RTC.get(); //gets the time from RTC
+//  String file_Name = String(day(p)) + monthShortStr(month(p)) + String(year(p)) + ".txt"; //creates the file name we are writing to.
+//  storageFile = SD.open(file_Name, FILE_WRITE);// creates the file object for writing
+//
+//  // if the file opened okay, write to it:
+//  if (storageFile) {
+//    Serial.print("Writing to " + file_Name);
+//    //appends a line to the file with time stamp and humidity and temperature data
+//    storageFile.println(String(hour(p)) + ":" + String(minute(p)) + " Hum: " + String(h) + "% C: " + String(t) + " F: " + String(f));
+//    // close the file:
+//    storageFile.close();
+//    Serial.println("done.");
+//  } else {
+//    // if the file didn't open, print an error:
+//    Serial.println("error opening " + file_Name);
+//  }
+//  //opening file for reading and writing content to serial monitor
+//  storageFile = SD.open(file_Name);
+//  if (storageFile) {
+//    Serial.println(file_Name);
+//
+//    // read from the file until there's nothing else in it:
+//    while (storageFile.available()) {
+//      Serial.write(storageFile.read());
+//    }
+//    // close the file:
+//    storageFile.close();
+//  } else {
+//    // if the file didn't open, print an error:
+//    Serial.println("error opening" + file_Name);
+//  }
+//}
