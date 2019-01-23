@@ -3,6 +3,8 @@ package server;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
@@ -25,24 +27,27 @@ import com.google.api.services.drive.DriveScopes;
 import com.google.api.services.drive.model.File;
 
 public class GoogleDriveService {
-    private static final String APPLICATION_NAME = "Google Drive API Java SBSBS Report Upload";
+    private static final String APPLICATION_NAME = "SBSBS Report Upload - Google Drive API Java";
     private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
+    // Delete previously saved tokens / folder if modifying the scopes
+    // DRIVE gives the most permissions? Old: DRIVE_METADATA_READONLY
+    private static final List<String> SCOPES = Collections.singletonList(DriveScopes.DRIVE);
+    // Directory location of the credentials file
+    private static final String CREDENTIALS_FILE_PATH = "assets/credentials.json";
     private static final String UPLOAD_REPORT_NAME = "SBSBS_Report_File";
     private static final String UPLOAD_REPORT_EXTENSION = ".csv";
-    // Delete previously saved tokens / folder if modifying the scopes
-    private static final List<String> SCOPES = Collections.singletonList(DriveScopes.DRIVE);	//DRIVE_METADATA_READONLY
-    private static final String CREDENTIALS_FILE_PATH = "/credentials.json";	// /../assets/credentials.json
     
     /**
-     * Creates an authorized Credential object.
+     * Creates an authorised Credential object.
      * @param HTTP_TRANSPORT The network HTTP Transport.
-     * @return An authorized Credential object.
+     * @return An authorised Credential object.
      * @throws IOException If the credentials.json file cannot be found.
      */
     private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
         // Load client secrets.
-        InputStream in = GoogleDriveService.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
+    	// GoogleDriveService.class.getResourceAsStream("/credentials.json"); // In the src folder
+        InputStream in = Files.newInputStream(Paths.get(CREDENTIALS_FILE_PATH)); 
         GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
         
         // Build flow and trigger user authorization request.

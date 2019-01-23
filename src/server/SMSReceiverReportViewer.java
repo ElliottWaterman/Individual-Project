@@ -107,7 +107,7 @@ public class SMSReceiverReportViewer {
         	// Upload the SBSBS.csv report file to Google Drive
         	try {
         		String uploadedFileName = GoogleDriveService.uploadReportFile();
-        		return uploadedFileName;
+        		return uploadedFileName + "<br><br>Click back to view Report Viewer";
         	}
         	catch (IOException ioXcp) {
         		ioXcp.printStackTrace();
