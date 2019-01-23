@@ -1,0 +1,17 @@
+#report-table {
+  margin-top:30px;
+}
+
+.btn {
+  background-color: DodgerBlue;
+  border: none;
+  color: white;
+  padding: 12px 30px;
+  margin: 5px 5px 5px 0px;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.btn:hover {
+  background-color: RoyalBlue;
+}

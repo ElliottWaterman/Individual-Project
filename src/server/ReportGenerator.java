@@ -54,7 +54,17 @@ public class ReportGenerator {
     	
     	// Add title heading
     	HTMLReport.append("<h1>Smart Boa Snake Basking Station</h1>");
-    	HTMLReport.append("<h2>Report Viewer</h2><br>");
+    	HTMLReport.append("<h2>Report Viewer</h2>");
+    	
+    	//Download report file, SBSBS.csv
+    	HTMLReport.append("<a href=\"SBSBS.csv\">");
+    	HTMLReport.append("<button class=\"btn\">Download CSV Report File</button>");
+    	HTMLReport.append("</a>");
+    	
+    	//Download report file, SBSBS.csv
+    	HTMLReport.append("<a href=\"/upload\">");
+    	HTMLReport.append("<button class=\"btn\">Upload CSV Report File To Google Drive</button>");
+    	HTMLReport.append("</a>");
     	
     	// Create table which is converted into a responsive table using Tabulator
     	// Add table header and tbody open tag

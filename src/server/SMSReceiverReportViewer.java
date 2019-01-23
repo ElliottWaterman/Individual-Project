@@ -13,6 +13,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -98,7 +99,26 @@ public class SMSReceiverReportViewer {
         	
         	return reportView;
         });
-
+        
+        /**
+         * 
+         */
+        get("/upload", (req, res) -> {
+        	// Upload the SBSBS.csv report file to Google Drive
+        	try {
+        		String uploadedFileName = GoogleDriveService.uploadReportFile();
+        		return uploadedFileName;
+        	}
+        	catch (IOException ioXcp) {
+        		ioXcp.printStackTrace();
+        		return false;
+        	}
+        	catch (GeneralSecurityException gsXcp) {
+        		gsXcp.printStackTrace();
+        		return false;
+        	}
+        });
+        
         /**
          * Function to serve a user request to POST an SMS text message, the 
          * text is sent from an Arduino/SIM900 module, the SBSBS, and contains 
