@@ -6,7 +6,7 @@
 // RX on Arduino (use tx wire on board)
 // TX on Arduino (use rx wire on board)
 // Use Carriage return and 57600 baud
-SoftwareSerial mySerial(2, 8);
+SoftwareSerial mySerial(8, 9);
 
 void setup() {
   // Open serial communications and wait for port to open:

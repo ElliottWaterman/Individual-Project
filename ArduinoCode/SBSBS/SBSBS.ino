@@ -6,7 +6,8 @@
 */
 
 /* INCLUDES */
-#include <avr/sleep.h>  //AVR library contains methods and sleep modes to control the sleep of an Arduino
+#include <avr/sleep.h>      //AVR library contains methods and sleep modes to control the sleep of an Arduino
+#include <Streaming.h>      //Used to make print statements easier to write
 
 #include <SoftwareSerial.h> //Library to communicate with RFID reader (TODO: create class?)
 #include <DS3232RTC.h>      //RTC library used to control the RTC module
@@ -14,20 +15,28 @@
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 
 /* DEFINES */
-#define PIN_WAKE_UP     2   //Interrupt pin (or #3) we are going to use to wake up the Arduino
+#define PIN_WAKE_UP     2   //Interrupt pin (or #3) to wake up the Arduino
 #define PIN_DHT22       3   //Digital pin connected to the DHT22 module
 #define PIN_SIM900_RX   6   //Receiving pin for the SIM900 module
 #define PIN_SIM900_TX   7   //Transmitting pin for the SIM900 module
-#define PIN_RFID_RX     8   //Receiving pin for the RFID module
-#define PIN_RFID_TX     9   //Transmitting pin for the RFID module
+#define PIN_RFID_RX     8   //Receiving pin on Arduino (use tx wire on board)
+#define PIN_RFID_TX     9   //Transmitting pin on Arduino (use rx wire on board)
 #define PIN_SD          10  //Digital pin connected to the SD module
+
+#define PIN_HX711_DATA  A2  //Weight sensor data pin
+#define PIN_HX711_CLOCK A3  //Weight sensor clock pin
+#define PIN_RTC_SDA     A4  //Connect RTC data to Arduino pin A4
+#define PIN_RTC_SCL     A5  //Connect RTC clock to Arduino pin A5
+
 #define TIME_INTERVAL   5   //Sets the wakeup intervall in minutes
 //#define EXAMPLE       1   //Comment
 
 /* INSTANTIATE LIBRARIES */
-SoftwareSerial RFID(PIN_RFID_RX, PIN_RFID_TX);        //Controls the RFID module
+SoftwareSerial RFID(PIN_RFID_RX, PIN_RFID_TX);        //Controls the RFID module: Uses 9600 baud and carridge return
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
-SimpleDHT22 DHT22(PIN_DHT22);   //Controls the DHT22 module
+SimpleDHT22 DHT22(PIN_DHT22);                         //Controls the DHT22 module
+Q2HX711 HX711(PIN_HX711_DATA, PIN_HX711_CLOCK);       //Controls the HX711 module
+
 //File storageFile;               //Controls writing to the SD card
 
 /* VARIABLES */
@@ -35,11 +44,21 @@ float dht22_temperature;
 float dht22_humidity;
 int dht22_error = SimpleDHTErrSuccess;
 
+long timeReadHX711;
+long timeReadDHT22;
+long timeReadRTC;
+
 /* SETUP */
 void setup() {
   Serial.begin(115200);               //Start serial communication
-  RFID.begin(9600);
+  Serial.println("Setup Begin");
+  
   SIM900.begin(9600);
+  RFID.begin(9600);
+  RFID.listen();
+
+  // Setup weight sensor
+  HX711.startSensorSetup();
   
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
@@ -73,48 +92,82 @@ void setup() {
 //    return;
 //  }
 //  Serial.println("initialization done.");
+
+  Serial.println("Setup Complete");
 }
 
 /* LOOP */
 void loop() {
+
   RFID.listen();
   char rfidTag[18];
-  int index = 0;
+  int rfidIndex = 0;
   while(RFID.available() > 0) {
     char inByte = RFID.read();
-    if (inByte != '\r' && index < 17) {
-      rfidTag[index++] = inByte;
+    if (inByte != '\r' && rfidIndex < 17) {
+      rfidTag[rfidIndex++] = inByte;
     }
     else {
       // Terminate buffer
-      rfidTag[index++] = '\0';
+      rfidTag[rfidIndex++] = '\0';
+      
+      Serial.println(rfidTag);
     }
   }
   
-  SIM900.listen();
-  char response[18];
-  int index = 0;
-  while(SIM900.available() > 0) {
-    char inByte = SIM900.read();
-    if (inByte != '\r' && index < 17) {
-      response[index++] = inByte;
-    }
-    else {
-      // Terminate buffer
-      response[index++] = '\0';
-      if (response == "OK") {
-        // do something
-      }
-      else if (response == "ERR") {
-        // do something else
-      }
-    }
-  }
-  
-  delay(5000);//wait 5 seconds before going to sleep. In real senairio keep this as small as posible
-  Going_To_Sleep();
+//  SIM900.listen();
+//  char response[18];
+//  int simIndex = 0;
+//  while(SIM900.available() > 0) {
+//    char inByte = SIM900.read();
+//    if (inByte != '\r' && simIndex < 17) {
+//      response[simIndex++] = inByte;
+//    }
+//    else {
+//      // Terminate buffer
+//      response[simIndex++] = '\0';
+//      
+//      Serial.println(response);
+//      
+//      if (response == "OK") {
+//        // do something
+//      }
+//      else if (response == "ERR") {
+//        // do something else
+//      }
+//    }
+//  }
 
-  //dht22ReadFromSensor();
+  // Read weight sensor
+  if (!HX711.isSetupComplete()) {
+    HX711.read(); // fill up averaging array
+  }
+  else if (millis() > timeReadHX711 + 500) {
+    if (HX711.readyToSend()) {
+      Serial.print(HX711.read());
+      Serial.println(" grams");
+      timeReadHX711 = millis();
+    }
+  }
+
+  if (millis() > timeReadDHT22 + 2000) {
+    dht22ReadFromSensor();
+    Serial.print(dht22_temperature);
+    Serial.print(" C  and  ");
+    Serial.print(dht22_humidity);
+    Serial.println(" %");
+    timeReadDHT22 = millis();
+  }
+
+  if (millis() > timeReadRTC + 1500) {
+    // Using time_t structure
+    time_t checkTimeT;
+    checkTimeT = RTC.get(); //Get the current time of the RTC
+    printDateTime(checkTimeT);
+    timeReadRTC = millis();
+  }
+  
+  //Going_To_Sleep();
 }
 
 /* FUNCTIONS */
@@ -163,6 +216,16 @@ void dht22ReadFromSensor() {
     return;
   }
   //TODO: Could return success value?
+}
+
+void printDateTime(time_t t)
+{
+  Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
+  Serial << monthShortStr(month(t));
+  Serial << _DEC(year(t)) << ' ';
+  Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
+  Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
+  Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t)) << endl;
 }
 
 /**
