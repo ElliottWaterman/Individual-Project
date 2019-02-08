@@ -31,6 +31,10 @@
 #define TIME_INTERVAL   5   //Sets the wakeup intervall in minutes
 //#define EXAMPLE       1   //Comment
 
+/* Constants */
+const byte RFID_BUFFER_SIZE = 18;
+
+
 /* INSTANTIATE LIBRARIES */
 SoftwareSerial RFID(PIN_RFID_RX, PIN_RFID_TX);        //Controls the RFID module: Uses 9600 baud and carridge return
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
@@ -50,21 +54,18 @@ long timeReadRTC;
 
 /* SETUP */
 void setup() {
-  Serial.begin(115200);               //Start serial communication
+  // Serial communications
+  Serial.begin(115200);
   Serial.println("Setup Begin");
   
   SIM900.begin(9600);
   RFID.begin(9600);
   RFID.listen();
 
-  // Setup weight sensor
+  // Initialise weight sensor
   HX711.startSensorSetup();
   
-  pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
-  pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
-  digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
-
-  // Initialise the alarms to known values, clear the alarm flags, clear the alarm interrupt flags
+  // Initialise RTC alarms to known values, clear the alarm flags, clear the alarm interrupt flags
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
   RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
   RTC.alarm(ALARM_1);
@@ -73,14 +74,15 @@ void setup() {
   RTC.alarmInterrupt(ALARM_2, false);
   RTC.squareWave(SQWAVE_NONE);
 
-  time_t t;         //create a temporary time variable so we can set the time and read the time from the RTC
+  // Set alarm on RTC for TIME_INTERVAL + t
+  time_t t;
   t = RTC.get();    //Gets the current time of the RTC
   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + TIME_INTERVAL, 0, 0);  // Setting alarm 1 to go off 5 minutes from now
-  // clear the alarm flag
+  //Clear the alarm flag
   RTC.alarm(ALARM_1);
-  // configure the INT/SQW pin for "interrupt" operation (disable square wave output)
+  //Configure the INT/SQW pin for "interrupt" operation (disable square wave output)
   RTC.squareWave(SQWAVE_NONE);
-  // enable interrupt output for Alarm 1
+  //Enable interrupt output for Alarm 1
   RTC.alarmInterrupt(ALARM_1, true);
 
   /**Initializes the SD breakout board. If it is not ready or not connected correct it writes
@@ -93,63 +95,28 @@ void setup() {
 //  }
 //  Serial.println("initialization done.");
 
+
+  // DEBUG
+  pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
+  pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
+  digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
+
   Serial.println("Setup Complete");
 }
 
 /* LOOP */
 void loop() {
 
-  RFID.listen();
-  char rfidTag[18];
-  int rfidIndex = 0;
-  while(RFID.available() > 0) {
-    char inByte = RFID.read();
-    if (inByte != '\r' && rfidIndex < 17) {
-      rfidTag[rfidIndex++] = inByte;
-    }
-    else {
-      // Terminate buffer
-      rfidTag[rfidIndex++] = '\0';
-      
-      Serial.println(rfidTag);
-    }
-  }
-  
-//  SIM900.listen();
-//  char response[18];
-//  int simIndex = 0;
-//  while(SIM900.available() > 0) {
-//    char inByte = SIM900.read();
-//    if (inByte != '\r' && simIndex < 17) {
-//      response[simIndex++] = inByte;
-//    }
-//    else {
-//      // Terminate buffer
-//      response[simIndex++] = '\0';
-//      
-//      Serial.println(response);
-//      
-//      if (response == "OK") {
-//        // do something
-//      }
-//      else if (response == "ERR") {
-//        // do something else
-//      }
-//    }
-//  }
+  // Get any incoming RFID data
+  readRFID();
 
-  // Read weight sensor
-  if (!HX711.isSetupComplete()) {
-    HX711.read(); // fill up averaging array
-  }
-  else if (millis() > timeReadHX711 + 500) {
-    if (HX711.readyToSend()) {
-      Serial.print(HX711.read());
-      Serial.println(" grams");
-      timeReadHX711 = millis();
-    }
-  }
+  // Get any incoming SIM900 data
+  //readSIM900();
 
+  // Get weight from sensor
+  readWeight();
+
+  // Get temperature from sensor
   if (millis() > timeReadDHT22 + 2000) {
     dht22ReadFromSensor();
     Serial.print(dht22_temperature);
@@ -159,6 +126,7 @@ void loop() {
     timeReadDHT22 = millis();
   }
 
+  // Get current time from RTC module
   if (millis() > timeReadRTC + 1500) {
     // Using time_t structure
     time_t checkTimeT;
@@ -171,6 +139,103 @@ void loop() {
 }
 
 /* FUNCTIONS */
+/**
+ * Function TODO
+ */
+void readRFID() {
+  RFID.listen();
+  char rfidTag[RFID_BUFFER_SIZE];
+  int rfidIndex = 0;
+  while (RFID.available() > 0) {
+    char inByte = RFID.read();
+    if (inByte != '\r' && rfidIndex < 17) {
+      rfidTag[rfidIndex++] = inByte;
+    }
+    else {
+      // Terminate buffer
+      rfidTag[rfidIndex++] = '\0';
+      
+      Serial.println(rfidTag);
+    }
+  }
+}
+
+/**
+ * Function TODO
+ */
+void readSIM900() {
+  SIM900.listen();
+  char response[18];
+  int simIndex = 0;
+  while (SIM900.available() > 0) {
+    char inByte = SIM900.read();
+    if (inByte != '\r' && simIndex < 17) {
+      response[simIndex++] = inByte;
+    }
+    else {
+      // Terminate buffer
+      response[simIndex++] = '\0';
+
+      Serial.println(response);
+
+      if (response == "OK") {
+        // do something
+      }
+      else if (response == "ERR") {
+        // do something else
+      }
+    }
+  }
+}
+
+/**
+ * Function TODO
+ */
+void readWeight() {
+  if (!HX711.isSetupComplete()) {
+    HX711.read(); // fill up averaging array
+  }
+  else if (millis() > timeReadHX711 + 500) {
+    if (HX711.readyToSend()) {
+      Serial.print(HX711.read());
+      Serial.println(" grams");
+      timeReadHX711 = millis();
+    }
+  }
+}
+
+/**
+   Function to read the temperature and humidity of the DHT22 sensor.
+*/
+void dht22ReadFromSensor() {
+  //Read from the DHT22 sensor and assign values into variables, NULL is meant for raw data array.
+  int function_success = DHT22.read2(&dht22_temperature, &dht22_humidity, NULL);
+  //Check return value is NOT equal to constant for success
+  if (function_success != SimpleDHTErrSuccess) {
+    Serial.print("Read DHT22 failed, err=");
+    Serial.println(function_success);
+    //delay(2000);
+    return;
+  }
+  //TODO: Could return success value?
+}
+
+/**
+ * Function TODO
+ */
+void printDateTime(time_t t)
+{
+  Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
+  Serial << monthShortStr(month(t));
+  Serial << _DEC(year(t)) << ' ';
+  Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
+  Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
+  Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t)) << endl;
+}
+
+/**
+ * Function TODO
+ */
 void Going_To_Sleep() {
   sleep_enable();                       //Enabling sleep mode
   //Pin to detect change, method to call, the change to detect
@@ -196,36 +261,13 @@ void Going_To_Sleep() {
   RTC.alarm(ALARM_1);
 }
 
+/**
+ * Function TODO
+ */
 void wakeUp() {
   Serial.println("Interrrupt Fired");//Print message to serial monitor
   sleep_disable();//Disable sleep mode
   detachInterrupt(0); //Removes the interrupt from pin 2;
-}
-
-/**
-   Function to read the temperature and humidity of the DHT22 sensor.
-*/
-void dht22ReadFromSensor() {
-  //Read from the DHT22 sensor and assign values into variables, NULL is meant for raw data array.
-  int function_success = DHT22.read2(&dht22_temperature, &dht22_humidity, NULL);
-  //Check return value is NOT equal to constant for success
-  if (function_success != SimpleDHTErrSuccess) {
-    Serial.print("Read DHT22 failed, err=");
-    Serial.println(function_success);
-    //delay(2000);
-    return;
-  }
-  //TODO: Could return success value?
-}
-
-void printDateTime(time_t t)
-{
-  Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
-  Serial << monthShortStr(month(t));
-  Serial << _DEC(year(t)) << ' ';
-  Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
-  Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
-  Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t)) << endl;
 }
 
 /**
