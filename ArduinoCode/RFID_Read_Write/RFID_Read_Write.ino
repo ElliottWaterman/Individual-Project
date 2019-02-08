@@ -20,7 +20,8 @@ void setup() {
 static char buffer[BUFFER_SIZE];
 static size_t buffer_pos;        // position of next write
 
-static char tagPresent[20];
+#define TAG_SIZE (40)
+static char tagPresent[TAG_SIZE];
 static int tagPresentPos;
 int recievedTagInfo = 0;
 
@@ -30,11 +31,11 @@ void loop() {
     char c = mySerial.read();
     buffer[buffer_pos++] = c;
 
-    // Echo received message
+    // Entire message has been received
     if (c == '\r') {                // \r means "end of message"
         buffer[buffer_pos] = '\0';  // terminate the buffer
         String ack = String(buffer);
-        Serial.println(buffer);     // send echo
+        //Serial.println(buffer);     // send echo
         //Serial.println(buffer_pos); // send size of buffer
 
         if (buffer_pos == 17) {
@@ -51,6 +52,10 @@ void loop() {
         else if (ack.equals("?1\r")) {
           tagPresent[tagPresentPos++] = 0;
           recievedTagInfo = checkTagPresent();
+          if (!recievedTagInfo) {
+            Serial.print("TagInfo: ");
+            Serial.println(recievedTagInfo);
+          }
         }
         else {
           Serial.println("Recieved: " + ack);
@@ -59,8 +64,10 @@ void loop() {
         }
         //recievedTagInfo = (buffer == "OK" ? 1 : 0) && (recievedTagInfo == 1);
         
-        buffer_pos = 0;             // reset to start of buffer
-        tagPresentPos = (tagPresentPos >= 20) ? 0 : tagPresentPos;
+        // Message has been dealt with, reset buffer position
+        buffer_pos = 0;
+        // Circle buffer position when max reached
+        tagPresentPos = (tagPresentPos >= TAG_SIZE) ? 0 : tagPresentPos;
     }
   }
 //
@@ -80,7 +87,7 @@ void loop() {
 }
 
 boolean checkTagPresent() {
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < TAG_SIZE; i++) {
     if (tagPresent[i]) {
       return true;
     }
