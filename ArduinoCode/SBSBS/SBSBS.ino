@@ -18,6 +18,7 @@
 /* DEFINES */
 #define PIN_WAKE_UP       2   //Interrupt pin (or #3) to wake up the Arduino
 #define PIN_DHT22         3   //Digital pin connected to the DHT22 module
+#define PIN_RFID_POWER    4   //Digital pin connected to the DHT22 module
 #define PIN_SIM900_RX     6   //Receiving pin for the SIM900 module
 #define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
 #define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
@@ -37,9 +38,11 @@ const byte RTC_ALARM_TIME_INTERVAL = 5;   //Sets the wakeup intervall in minutes
 
 const byte RFID_TAG_BUFFER_SIZE = 128;
 
-const int HX711_TIME_READ_INTERVAL = 500;
+const int HX711_TIME_READ_INTERVAL = 1;       //Interval in seconds to read sensor
+const int HX711_WEIGHT_BOUNDARY_TRIGGER = 25; //weightDifference in weight to "detect" snake
 const int DHT22_TIME_READ_INTERVAL = 2000;
 const int RTC_TIME_READ_INTERVAL = 1500;
+const byte RFID_POWER_ON_SECONDS = 30;
 
 
 /* INSTANTIATE LIBRARIES */
@@ -55,9 +58,10 @@ float DHT22Temperature;
 float DHT22Humidity;
 
 // Instead of using delay() read time and check above x amount
-long HX711TimeRead;
+time_t HX711TimeRead;
 long DHT22TimeRead;
 long RTCTimeRead;
+time_t RFIDPowerOnTimer = 0;
 
 // RFID variables
 static char RFIDTag[RFID_TAG_BUFFER_SIZE];
@@ -65,7 +69,8 @@ static byte RFIDTagIndex;
 String RFIDTagString;
 
 // HX711 weight sensor variables
-double HX711Weight;
+double HX711Weight = 0;
+double HX711WeightPrevious = 0;
 
 /* SETUP */
 void setup() {
@@ -85,6 +90,9 @@ void setup() {
   while (!HX711.isSetupComplete()) {
     HX711.read();
   }
+
+  // Initialise RFID module, start powered off
+  digitalWrite(PIN_RFID_POWER, LOW);
 
   // Initialise RTC alarms to known values, clear the alarm flags, clear the alarm interrupt flags
   Serial.println("Initialising RTC alarms");
@@ -117,35 +125,93 @@ void setup() {
 /* LOOP */
 void loop() {
 
-  // Get any incoming RFID data
-  // Collect data from other sensors
-  if (readRFIDTag()) {
-    Serial.println("RFID Tag: " + RFIDTagString);
+  // Check HX711 weight sensor
+  if (RTC.get() - HX711TimeRead >= HX711_TIME_READ_INTERVAL) {
+    if (HX711.readyToSend()) {
+      // Set old weight to compare with new weight
+      HX711WeightPrevious = HX711Weight;
+      // Check current weight for snake entering basking station
+      HX711Weight = HX711.read();
+      // Update time sensor was checked
+      HX711TimeRead = RTC.get();
 
-    // Get temperature from sensor
-    if (millis() > DHT22TimeRead + DHT22_TIME_READ_INTERVAL) {
-      dht22ReadFromSensor();
-      Serial.print(DHT22Temperature);
-      Serial.print(" C  and  ");
-      Serial.print(DHT22Humidity);
-      Serial.println(" %RH");
-      DHT22TimeRead = millis();
-    }
+      // Current weight is greater than previous weight by x amount
+      double weightDifference = HX711Weight - HX711WeightPrevious;
+      if (RFIDPowerOnTimer == 0 && weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
+        // DEBUG
+        Serial.print(HX711Weight);
+        Serial.print(" grams. Diff: ");
+        Serial.print(weightDifference);
+        Serial.println(" grams");
 
-    // Check weight for snake entering basking station
-    readWeight();
-    Serial.print(HX711Weight);
-    Serial.println(" grams");
-
-    // Get current time from RTC module
-    if (millis() > RTCTimeRead + RTC_TIME_READ_INTERVAL) {
-      // Using time_t structure
-      time_t checkTimeT;
-      checkTimeT = RTC.get(); //Get the current time of the RTC
-      printDateTime(checkTimeT);
-      RTCTimeRead = millis();
+        // Turn on RFID module
+        digitalWrite(PIN_RFID_POWER, HIGH);
+        // Start timer to keep RFID power on
+        RFIDPowerOnTimer = RTC.get();
+      }
+      else if (weightDifference <= 0) {
+        // Weight is decreasing.. TODO
+      }
     }
   }
+
+  // RFID module is on so read tags and update power status
+  if (RFIDPowerOnTimer != 0) {
+    // RFID has been on for long enough to read tag
+    if (RTC.get() - RFIDPowerOnTimer >= RFID_POWER_ON_SECONDS) {
+      // Turn off RFID module
+      digitalWrite(PIN_RFID_POWER, LOW);
+      // Reset timer variable
+      RFIDPowerOnTimer = 0;
+    }
+    else
+    {
+      // Get any incoming RFID data
+      if (readRFIDTag()) {
+        Serial.println("RFID Tag: " + RFIDTagString);
+        Serial.println("Time Difference Test: " + (RTC.get() - RFIDPowerOnTimer));
+        
+        // Keep RFID module on for longer to see if any extra tags are read
+        RFIDPowerOnTimer = RTC.get();
+
+        // Get temperature
+        dht22ReadFromSensor();
+        Serial.print(DHT22Temperature);
+        Serial.print(" C  and  ");
+        Serial.print(DHT22Humidity);
+        Serial.println(" %RH");
+      }
+    }
+  }
+
+  // Get any incoming RFID data
+  // Collect data from other sensors
+  // if (readRFIDTag()) {
+  //   Serial.println("RFID Tag: " + RFIDTagString);
+
+  //   // Get temperature from sensor
+  //   if (millis() > DHT22TimeRead + DHT22_TIME_READ_INTERVAL) {
+      
+  //     Serial.print(DHT22Temperature);
+  //     Serial.print(" C  and  ");
+  //     Serial.print(DHT22Humidity);
+  //     Serial.println(" %RH");
+  //     DHT22TimeRead = millis();
+  //   }
+
+  //   // Check weight for snake entering basking station
+  //   Serial.print(HX711Weight);
+  //   Serial.println(" grams");
+
+  //   // Get current time from RTC module
+  //   if (millis() > RTCTimeRead + RTC_TIME_READ_INTERVAL) {
+  //     // Using time_t structure
+  //     time_t checkTimeT;
+  //     checkTimeT = RTC.get(); //Get the current time of the RTC
+  //     printDateTime(checkTimeT);
+  //     RTCTimeRead = millis();
+  //   }
+  // }
 
   // Get any incoming SIM900 data
   //readSIM900();
@@ -167,7 +233,7 @@ boolean readRFIDTag() {
 
     // Entire message has been received
     if (inByte == '\r') {               // '\r' means "end of message"
-      RFIDTag[RFIDTagIndex] = '\0';     // Terminate the RFIDTag
+      RFIDTag[--RFIDTagIndex] = '\0';   // Terminate the RFIDTag replacing '\r'
       RFIDTagString = String(RFIDTag);  // Set string tag to received tag
 
       // Message has been dealt with, reset RFIDTag position
@@ -203,21 +269,6 @@ void readSIM900() {
       else if (response == "ERR") {
         // do something else
       }
-    }
-  }
-}
-
-/**
- * Function TODO
- */
-void readWeight() {
-  if (!HX711.isSetupComplete()) {
-    HX711.read(); // fill up averaging array
-  }
-  else if (millis() > HX711TimeRead + HX711_TIME_READ_INTERVAL) {
-    if (HX711.readyToSend()) {
-      HX711Weight = HX711.read();
-      HX711TimeRead = millis();
     }
   }
 }
