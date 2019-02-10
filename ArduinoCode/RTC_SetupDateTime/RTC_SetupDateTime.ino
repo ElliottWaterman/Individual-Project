@@ -20,7 +20,7 @@
 /* VARIABLES */
 
 void setup() {
-  Serial.begin(115200);               //Start serial communication
+  Serial.begin(9600);               //Start serial communication
 
   // Initialise the alarms to known values, clear the alarm flags, clear the alarm interrupt flags
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
@@ -31,31 +31,38 @@ void setup() {
   RTC.alarmInterrupt(ALARM_2, false);
   RTC.squareWave(SQWAVE_NONE);
 
-  // Set date and time of the RTC module
-  tmElements_t tm;
-  tm.Hour = 12;
-  tm.Minute = 00;
-  tm.Second = 00;
-  tm.Day = 14;
-  tm.Month = 1;
-  tm.Year = 2019 - 1970;  //tmElements_t.Year is offset from 1970
-  RTC.write(tm);          //Set the RTC from the tm structure
+  /* METHOD 1*/
+  // Serial.println("Method 1: ");
+  // // Set date and time of the RTC module
+  // tmElements_t tm;
+  // tm.Hour = 12;
+  // tm.Minute = 00;
+  // tm.Second = 00;
+  // tm.Day = 14;
+  // tm.Month = 1;
+  // tm.Year = 2019 - 1970;  //tmElements_t.Year is offset from 1970
 
-  Serial.println("Setup:");
+  // RTC.write(tm);          //Set the RTC from the tm structure
 
-  // Using time_t structure
-  time_t checkTimeT;
-  checkTimeT = RTC.get(); //Get the current time of the RTC
-  printDateTime(checkTimeT);
 
-  // Using tmElements_t structure
-  tmElements_t checkTimeTmElement;
-  RTC.read(checkTimeTmElement);
-  printDateTimeTmElement(checkTimeTmElement);
+  /* METHOD 2 */
+  Serial.println("Method 2: ");
+  time_t t = processSyncMessage();
+  if (t != 0) {
+    // Set the RTC and the system time to the received value
+    RTC.set(t);
+    setTime(t);
+  }
+
+  setSyncProvider(RTC.get);   // the function to get the time from the RTC
+  if (timeStatus() != timeSet) 
+     Serial.println("Unable to sync with the RTC");
+  else
+     Serial.println("RTC has set the system time");
 }
 
 void loop() {
-  Serial.println("Loop:");
+  Serial.println("Loop: ");
 
   // Using time_t structure
   time_t checkTimeT;
@@ -66,6 +73,26 @@ void loop() {
   tmElements_t checkTimeTmElement;
   RTC.read(checkTimeTmElement);   //Read the current time of the RTC
   printDateTimeTmElement(checkTimeTmElement);
+
+  delay(1000);
+}
+
+/*  code to process time sync messages from the serial port   */
+#define TIME_HEADER  "T"   // Header tag for serial time sync message
+
+unsigned long processSyncMessage() {
+  unsigned long pctime = 0L;
+  const unsigned long DEFAULT_TIME = 1549666800; // Fri, 08 Feb 2019 23:00:00 GMT
+
+  if(Serial.find(TIME_HEADER)) {
+    pctime = Serial.parseInt();
+    return pctime;
+
+    if (pctime < DEFAULT_TIME) { // check the value is a valid time (greater than Jan 1 2013)
+      pctime = 0L; // return 0 to indicate that the time is not valid
+    }
+  }
+  return pctime;
 }
 
 void printDateTime(time_t t)

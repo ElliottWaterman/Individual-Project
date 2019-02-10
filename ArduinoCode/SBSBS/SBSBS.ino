@@ -1,6 +1,7 @@
 /**
    Author: Elliott Waterman
-   Date: 11/01/2019
+   Date Created: 11/01/2019
+   Date Last Modified: 10/02/2019
    Description: Complete program to run the arduino in the
    Smart Boa Snake Basking Station.
 */
@@ -104,20 +105,24 @@ void setup() {
   RTC.alarmInterrupt(ALARM_2, false);
   RTC.squareWave(SQWAVE_NONE);
 
-  // Initializes the SD breakout board. If it is not ready or not connected correct it writes an error 
-  // message to the serial monitor
-/*  Serial.print("Initializing SD card...");
-  if (!SD.begin(chipSelect)) {
-    Serial.println("initialization failed!");
-    return;
+  // Initialise Arduino time from RTC
+  setSyncProvider(RTC.get); // Sync to a function that gets the time from the RTC
+  //setSyncInterval(CONST); // Set the number of seconds between re-syncs (5 minutes default)
+  if (timeStatus() == timeSet)
+    Serial.println("RTC has set the system time");
+  else if (timeStatus() == timeNeedsSync)
+    Serial.println("Unable to sync with the RTC");
+  else if (timeStatus() == timeNotSet)
+    Serial.println("RTC has set the system time");
+  else
+  {
+      Serial.println("Unable to sync with the RTC");
   }
-  Serial.println("initialization done.");*/
-
 
   // DEBUG
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
-  digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
+  //digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
 
   Serial.println("Setup Complete");
 }
@@ -148,9 +153,11 @@ void loop() {
         digitalWrite(PIN_RFID_POWER, HIGH);
         // Start timer to keep RFID power on
         RFIDPowerOnTimer = RTC.get();
+
+        digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on DEBUG
       }
       else if (weightDifference <= 0) {
-        // Weight is decreasing.. TODO
+        // Weight is decreasing.. TODO?
       }
     }
   }
@@ -163,6 +170,8 @@ void loop() {
       digitalWrite(PIN_RFID_POWER, LOW);
       // Reset timer variable
       RFIDPowerOnTimer = 0;
+
+      digitalWrite(LED_BUILTIN, LOW);    //Turn built-in LED off DEBUG
     }
     else
     {
