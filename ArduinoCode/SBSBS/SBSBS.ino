@@ -43,7 +43,7 @@ const int HX711_TIME_READ_INTERVAL = 1;       //Interval in seconds to read sens
 const int HX711_WEIGHT_BOUNDARY_TRIGGER = 25; //weightDifference in weight to "detect" snake
 const int DHT22_TIME_READ_INTERVAL = 2000;
 const int RTC_TIME_READ_INTERVAL = 1500;
-const byte RFID_POWER_ON_SECONDS = 30;
+const byte RFID_POWER_ON_SECONDS = 20;
 
 
 /* INSTANTIATE LIBRARIES */
@@ -72,6 +72,10 @@ String RFIDTagString;
 // HX711 weight sensor variables
 double HX711Weight = 0;
 double HX711WeightPrevious = 0;
+
+// DEBUG
+bool DEBUGOnce = true;
+unsigned long DEBUGStartTime;
 
 /* SETUP */
 void setup() {
@@ -115,14 +119,14 @@ void setup() {
   else if (timeStatus() == timeNotSet)
     Serial.println("RTC has set the system time");
   else
-  {
-      Serial.println("Unable to sync with the RTC");
-  }
+    Serial.println("Unable to sync with the RTC");
 
   // DEBUG
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
   //digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
+
+  DEBUGStartTime = millis();
 
   Serial.println("Setup Complete");
 }
@@ -151,10 +155,11 @@ void loop() {
 
         // Turn on RFID module
         digitalWrite(PIN_RFID_POWER, HIGH);
+        digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on DEBUG
         // Start timer to keep RFID power on
         RFIDPowerOnTimer = RTC.get();
-
-        digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on DEBUG
+        // DEBUG
+        DEBUGSecondDisplay(RFIDPowerOnTimer);
       }
       else if (weightDifference <= 0) {
         // Weight is decreasing.. TODO?
@@ -164,17 +169,23 @@ void loop() {
 
   // RFID module is on so read tags and update power status
   if (RFIDPowerOnTimer != 0) {
+    // DEBUG
+    //DEBUGSecondDisplay(RTC.get());
     // RFID has been on for long enough to read tag
     if (RTC.get() - RFIDPowerOnTimer >= RFID_POWER_ON_SECONDS) {
+      // DEBUG
+      DEBUGSecondDisplay("RFID off.");
       // Turn off RFID module
       digitalWrite(PIN_RFID_POWER, LOW);
+      digitalWrite(LED_BUILTIN, LOW);    //Turn built-in LED off DEBUG
       // Reset timer variable
       RFIDPowerOnTimer = 0;
-
-      digitalWrite(LED_BUILTIN, LOW);    //Turn built-in LED off DEBUG
     }
     else
     {
+      // DEBUG
+      DEBUGSecondDisplay(readRFIDTag());
+
       // Get any incoming RFID data
       if (readRFIDTag()) {
         Serial.println("RFID Tag: " + RFIDTagString);
@@ -193,35 +204,6 @@ void loop() {
     }
   }
 
-  // Get any incoming RFID data
-  // Collect data from other sensors
-  // if (readRFIDTag()) {
-  //   Serial.println("RFID Tag: " + RFIDTagString);
-
-  //   // Get temperature from sensor
-  //   if (millis() > DHT22TimeRead + DHT22_TIME_READ_INTERVAL) {
-      
-  //     Serial.print(DHT22Temperature);
-  //     Serial.print(" C  and  ");
-  //     Serial.print(DHT22Humidity);
-  //     Serial.println(" %RH");
-  //     DHT22TimeRead = millis();
-  //   }
-
-  //   // Check weight for snake entering basking station
-  //   Serial.print(HX711Weight);
-  //   Serial.println(" grams");
-
-  //   // Get current time from RTC module
-  //   if (millis() > RTCTimeRead + RTC_TIME_READ_INTERVAL) {
-  //     // Using time_t structure
-  //     time_t checkTimeT;
-  //     checkTimeT = RTC.get(); //Get the current time of the RTC
-  //     printDateTime(checkTimeT);
-  //     RTCTimeRead = millis();
-  //   }
-  // }
-
   // Get any incoming SIM900 data
   //readSIM900();
 
@@ -229,6 +211,13 @@ void loop() {
 }
 
 /* FUNCTIONS */
+template <class T> void DEBUGSecondDisplay(const T toDisplay) {
+  if (millis() - DEBUGStartTime > 1000) {
+    Serial.println(toDisplay);
+    DEBUGStartTime = millis();
+  }
+}
+
 /**
  * Function to listen and read in an RFID tag from software serial
  */
