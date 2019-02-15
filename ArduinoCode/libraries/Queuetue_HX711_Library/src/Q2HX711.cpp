@@ -54,11 +54,11 @@ double Q2HX711::read() {
   updateAverage(value);
   
   // Return weight in grams
-  if (startupAverage == 0) {
+  if (initialZeroPosition == 0) {
 	  return abs((value - average) / SCALE_FACTOR);
   }
   else {
-	 return abs((value - startupAverage) / SCALE_FACTOR);
+	 return abs((value - initialZeroPosition) / SCALE_FACTOR);
   }
 }
 
@@ -76,7 +76,7 @@ void Q2HX711::updateAverage(long incomingValue) {
 	readIndex++;
 
 	// more accurate at first use (could remove - as setup instead)
-	if ((startupAverage == 0) && (readIndex < NUM_OF_READINGS)) {
+	if ((initialZeroPosition == 0) && (readIndex < NUM_OF_READINGS)) {
 		average = total / readIndex;
 	}
 
@@ -84,8 +84,8 @@ void Q2HX711::updateAverage(long incomingValue) {
 	if (readIndex >= NUM_OF_READINGS) {
 		readIndex = 0;
 		// If startup average not set then set now
-		if (startupAverage == 0) {
-			startupAverage = average - ADJUST_AVERAGE; //smoothedAverage() - ADJUST_AVERAGE;
+		if (initialZeroPosition == 0) {
+			initialZeroPosition = average - ADJUST_AVERAGE; //smoothedAverage() - ADJUST_AVERAGE;
 			// setup is complete
 			if (setupSensor) {
 				isSensorSetup = true;
@@ -98,15 +98,23 @@ long Q2HX711::getAverage() {
 	return average;
 }
 
-long Q2HX711::getStartupAverage() {
-	return startupAverage;
+long Q2HX711::getInitialZeroPosition() {
+	return initialZeroPosition;
+}
+
+long Q2HX711::getCurrentZeroPosition() {
+	return currentZeroPosition;
+}
+
+void Q2HX711::updateCurrentZeroPosition() {
+	
 }
 
 void Q2HX711::startSensorSetup() {
 	setupSensor = true;
 	isSensorSetup = false;
 	// for after beginning setup
-	startupAverage = 0;
+	initialZeroPosition = 0;
 }
 
 bool Q2HX711::isSetupComplete() {

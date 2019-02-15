@@ -22,7 +22,9 @@ class Q2HX711
 		uint8_t readIndex = 0;              	// the index of the current reading
 		uint32_t total = 0;                 	// the running total
 		long average = 0;                		// the average
-		long startupAverage = 0;				// the average at start up
+		long initialZeroPosition = 0;			// the average at start up
+		long currentZeroPosition = 0;			// the current zero position (opposite of tare weight; with added weight)
+		
 		bool setupSensor = false;				// flag for sensor to be setup
 		bool isSensorSetup = false;				// flag for startup average completion
 		void updateAverage(long incomingData);	// internal func to calc average
@@ -38,7 +40,10 @@ class Q2HX711
 		void powerDown();			// not sure if work
 		void powerUp();				// not sure if work (will read anyway)
 		long getAverage();
-		long getStartupAverage();
+		long getInitialZeroPosition();
+		long getCurrentZeroPosition();
+		void updateCurrentZeroPosition();
+		
 		void startSensorSetup();
 		bool isSetupComplete();
 };

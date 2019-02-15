@@ -161,7 +161,7 @@ void loop() {
         // DEBUG
         DEBUGSecondDisplay(RFIDPowerOnTimer);
       }
-      else if (weightDifference <= 0) {
+      else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
         // Weight is decreasing.. TODO?
       }
     }
