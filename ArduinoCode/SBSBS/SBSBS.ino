@@ -133,8 +133,14 @@ void setup() {
 
 /* LOOP */
 void loop() {
+  // Get this loops time 
+  time_t currentTime = RTC.get();
+
+  HX711.testFunction2();
 
   // Check HX711 weight sensor
+  HX711.update(currentTime);
+
   if (RTC.get() - HX711TimeRead >= HX711_TIME_READ_INTERVAL) {
     if (HX711.readyToSend()) {
       // Set old weight to compare with new weight

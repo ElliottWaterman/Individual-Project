@@ -1,6 +1,7 @@
 #ifndef Q2HX711_h
 #define Q2HX711_h
 #include "Arduino.h"
+#include <Time.h>
 
 // const byte NUM_OF_READINGS = 16;
 // const uint16_t SCALE_FACTOR = 712;
@@ -30,6 +31,12 @@ class Q2HX711
 		void updateAverage(long incomingData);	// internal func to calc average
 		//long smoothedAverage();					// remove top and bottom value
 
+		time_t previousTime;
+		unsigned long timeInterval;
+		
+		double currentWeight;
+		double previousWeight;
+
 	public:
 		Q2HX711(byte output_pin, byte clock_pin);	// constructor
 		virtual ~Q2HX711();							// destructor
@@ -37,8 +44,9 @@ class Q2HX711
 		double read();
 		
 		// Elliott
-		void powerDown();			// not sure if work
-		void powerUp();				// not sure if work (will read anyway)
+		void update(time_t currentTime);
+		void testFunction2();
+
 		long getAverage();
 		long getInitialZeroPosition();
 		long getCurrentZeroPosition();
@@ -46,6 +54,8 @@ class Q2HX711
 		
 		void startSensorSetup();
 		bool isSetupComplete();
+		void powerDown();			// not sure if work
+		void powerUp();				// not sure if work (will read anyway)
 };
 
 #endif /* Q2HX711_h */

@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include "Q2HX711.h"
 
+/**
+ * Constructor
+ */
 Q2HX711::Q2HX711(byte output_pin, byte clock_pin) {
   CLOCK_PIN  = clock_pin;
   OUT_PIN  = output_pin;
@@ -9,22 +12,21 @@ Q2HX711::Q2HX711(byte output_pin, byte clock_pin) {
   pinMode(OUT_PIN, INPUT);
 }
 
+/**
+ * Destuctor
+ */
 Q2HX711::~Q2HX711() {
 }
 
-void Q2HX711::powerDown() 
-{
-	digitalWrite(CLOCK_PIN, LOW);
-	digitalWrite(CLOCK_PIN, HIGH);
+void Q2HX711::update(time_t currentTime) {
+	if (currentTime - previousTime >= timeInterval) {
+		
+		previousTime = currentTime;
+	}
 }
 
-void Q2HX711::powerUp() 
-{
-	digitalWrite(CLOCK_PIN, LOW);
-}
+void Q2HX711::testFunction2() {
 
-bool Q2HX711::readyToSend() {
-  return digitalRead(OUT_PIN) == LOW;
 }
 
 double Q2HX711::read() {
@@ -119,6 +121,21 @@ void Q2HX711::startSensorSetup() {
 
 bool Q2HX711::isSetupComplete() {
 	return isSensorSetup;
+}
+
+void Q2HX711::powerDown() 
+{
+	digitalWrite(CLOCK_PIN, LOW);
+	digitalWrite(CLOCK_PIN, HIGH);
+}
+
+void Q2HX711::powerUp() 
+{
+	digitalWrite(CLOCK_PIN, LOW);
+}
+
+bool Q2HX711::readyToSend() {
+  return digitalRead(OUT_PIN) == LOW;
 }
 
 /* long Q2HX711::smoothedAverage() {
