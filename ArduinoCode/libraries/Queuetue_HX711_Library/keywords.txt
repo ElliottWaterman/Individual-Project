@@ -12,8 +12,15 @@ Q2HX711				KEYWORD1	Q2HX711
 # Methods and Functions (KEYWORD2)
 #######################################
 
-readyToSend				KEYWORD2
-read			KEYWORD2
+readyToSend         KEYWORD2
+read                KEYWORD2
+update              KEYWORD2
+getWeightDetected   KEYWORD2
+resetWeightDetected KEYWORD2
+startSensorSetup    KEYWORD2
+isSetupComplete     KEYWORD2
+powerDown           KEYWORD2
+powerUp             KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

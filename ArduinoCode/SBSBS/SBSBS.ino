@@ -14,12 +14,13 @@
 #include <DS3232RTC.h>      //RTC library used to control the RTC module
 #include <SimpleDHT.h>      //DHT22 library used to read from a DHT22 module
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
+#include <RFID_Priority1Design.h> //HX711 library used to read weight sensor (amplifier + load cell)
 
 
 /* DEFINES */
 #define PIN_WAKE_UP       2   //Interrupt pin (or #3) to wake up the Arduino
 #define PIN_DHT22         3   //Digital pin connected to the DHT22 module
-#define PIN_RFID_POWER    4   //Digital pin connected to the DHT22 module
+#define PIN_RFID_POWER    4   //Digital pin connected BJT/MOSFET switch to power module
 #define PIN_SIM900_RX     6   //Receiving pin for the SIM900 module
 #define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
 #define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
@@ -51,9 +52,12 @@ const int DHT22_TIME_READ_INTERVAL = 2000;
 
 
 /* INSTANTIATE LIBRARIES */
-SoftwareSerial RFID(PIN_RFID_RX, PIN_RFID_TX);        //Controls the RFID module: Uses 9600 baud and carridge return
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
+
+RFID_P1D RFID(PIN_RFID_RX, PIN_RFID_TX, PIN_RFID_POWER);              //Controls the RFID module
+
 SimpleDHT22 DHT22(PIN_DHT22);                         //Controls the DHT22 module
+
 Q2HX711 HX711(PIN_HX711_DATA, PIN_HX711_CLOCK);       //Controls the HX711 module
 //File storageFile;               //Controls writing to the SD card
 
@@ -91,8 +95,6 @@ void setup() {
 
   // Start software serial communication with SIM and RFID modules
   SIM900.begin(9600);
-  RFID.begin(9600);
-  RFID.listen();
 
   // Initialise weight sensor
   Serial.println("Initialising weight sensor");
@@ -103,7 +105,8 @@ void setup() {
   }
 
   // Initialise RFID module, start powered off
-  digitalWrite(PIN_RFID_POWER, LOW);
+  Serial.println("Powering down RFID module");
+  RFID.powerDown();
 
   // Initialise RTC alarms to known values, clear the alarm flags, clear the alarm interrupt flags
   Serial.println("Initialising RTC alarms");
@@ -134,66 +137,69 @@ void setup() {
 
   DEBUGStartTime = millis();
 
-  Serial.println("Setup Complete");
+  Serial.println("Setup Complete!");
 }
 
 /* LOOP */
 void loop() {
-  // Get this loops time
-  unsigned long currentMillis = millis();
-  time_t currentEpoch = RTC.get();
+  // Get time for this loop
+  //unsigned long currentMillis = millis();
+  //time_t currentEpoch = RTC.get();
 
   // Check HX711 weight sensor for change in weight
   HX711.update();
 
   // If a weight has been detected turn on RFID module
   if (HX711.getWeightDetected()) {
-    // Turn on RFID module
-    digitalWrite(PIN_RFID_POWER, HIGH);
-    digitalWrite(LED_BUILTIN, HIGH);  // DEBUG LED
+    // Turn on RFID module, only executes if module is OFF
+    RFID.powerUp();
 
-    // Start timer to keep RFID power on
-    RFIDPowerOnTime = currentMillis;
+    // Reset weight detection
+    HX711.resetWeightDetected();
   }
 
-  // RFID module is ON so read tags and update power status
-  if (currentMillis - RFIDPowerOnTime <= RFIDPowerOnSeconds) {
-    // Try read an RFID tag
-    if (readRFIDTag()) {
-      Serial.println("RFID Tag: " + RFIDTagString);
-      Serial.println("Time Difference Test: " + (currentMillis - RFIDPowerOnTime));
-      
-      // Keep RFID module on for longer to see if any extra tags are read
-      if (RFIDPowerOnSeconds == INITIAL_RFID_POWER_ON_SECONDS) {
-        // Restart RFID power on count down timer
-        RFIDPowerOnTime = currentMillis;
-      }
+  // Read tags or turn off module if elapsed time on, only runs if module is ON
+  RFID.update();
 
-      // Read current temperature
-      dht22ReadFromSensor();
-      Serial.print(DHT22Temperature);
-      Serial.print(" C  and  ");
-      Serial.print(DHT22Humidity);
-      Serial.println(" %RH");
-    }
-  }
-  // RFID module has elapsed power on time so turn OFF
-  else if (currentMillis - RFIDPowerOnTime >= RFIDPowerOnSeconds)
-  {
-    // Turn off RFID module
-    digitalWrite(PIN_RFID_POWER, LOW);
-    digitalWrite(LED_BUILTIN, LOW);  // DEBUG LED
+  // Check if tag has been read
+  if (RFID.hasTagBeenRead()) {
 
-    // Reset power on timer
-    RFIDPowerOnTime = 0;
+    // Collect temperature data
+    dht22ReadFromSensor();
+
+    // Reset RFID tag read
+    RFID.resetTagRead();
   }
-  
+
+  // Read current temperature
+  // dht22ReadFromSensor();
+  // Serial.print(DHT22Temperature);
+  // Serial.print(" C  and  ");
+  // Serial.print(DHT22Humidity);
+  // Serial.println(" %RH");
 
   // Get any incoming SIM900 data
   //readSIM900();
 
   //Going_To_Sleep();
+
+  // PUESDO-code
+  // Check RTC alarm to sleep module for night time
+    // Check all power states / if snake is still present
+      // Set alarm for 1 hour later
+    // Else 
+      // Set alarm interrupt for morning
+      // Turn off other modules if necessary
+      // Sleep Arduino
 }
+
+struct Message {
+  time_t epochTime;
+  String rfidTag;
+  float temperature;
+  float weight; // highest and lowest?
+};
+
 
 /* FUNCTIONS */
 template <class T> void DEBUGSecondDisplay(const T toDisplay) {
@@ -207,7 +213,7 @@ template <class T> void DEBUGSecondDisplay(const T toDisplay) {
  * Function to listen and read in an RFID tag from software serial
  */
 boolean readRFIDTag() {
-  // Set listening serial to RFID module
+  // Listen to serial port for RFID communication
   RFID.listen();
   while (RFID.available() && RFIDTagIndex < (RFID_TAG_BUFFER_SIZE - 1)) {
     // Read incoming character/byte

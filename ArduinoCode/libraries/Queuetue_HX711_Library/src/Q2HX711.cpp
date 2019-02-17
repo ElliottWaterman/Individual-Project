@@ -1,5 +1,5 @@
-#include <Arduino.h>
 #include "Q2HX711.h"
+#include <Arduino.h>
 
 /**
  * Constructor
@@ -18,6 +18,9 @@ Q2HX711::Q2HX711(byte output_pin, byte clock_pin) {
 Q2HX711::~Q2HX711() {
 }
 
+/**
+ * Function to regularly read sensor and detect changes in weight
+ */
 void Q2HX711::update() {
 	// Get current milliseconds
 	unsigned long currentMillis = millis();
@@ -30,12 +33,12 @@ void Q2HX711::update() {
       // Check current weight for snake entering basking station
       currentWeight = read();
 
-      // Update time sensor was checked
+      // Update the time the sensor was checked
 			previousMillis = currentMillis;
 
       // Current weight is greater than previous weight by x amount
       double weightDifference = currentWeight - previousWeight;
-      if ((weightDetected == false) && (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER)) {
+      if (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
 				weightDetected = true;
       }
       else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
