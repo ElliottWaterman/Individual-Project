@@ -18,15 +18,39 @@ Q2HX711::Q2HX711(byte output_pin, byte clock_pin) {
 Q2HX711::~Q2HX711() {
 }
 
-void Q2HX711::update(time_t currentTime) {
-	if (currentTime - previousTime >= timeInterval) {
-		
-		previousTime = currentTime;
+void Q2HX711::update() {
+	// Get current milliseconds
+	unsigned long currentMillis = millis();
+
+	if (currentMillis - previousMillis >= millisInterval) {
+		if (readyToSend()) {
+      // Set old weight to compare with new weight
+      previousWeight = currentWeight;
+
+      // Check current weight for snake entering basking station
+      currentWeight = read();
+
+      // Update time sensor was checked
+			previousMillis = currentMillis;
+
+      // Current weight is greater than previous weight by x amount
+      double weightDifference = currentWeight - previousWeight;
+      if ((weightDetected == false) && (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER)) {
+				weightDetected = true;
+      }
+      else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
+        // Weight is decreasing.. TODO?
+      }
+    }
 	}
 }
 
-void Q2HX711::testFunction2() {
+boolean Q2HX711::getWeightDetected() {
+	return weightDetected;
+}
 
+void Q2HX711::resetWeightDetected() {
+	weightDetected = false;
 }
 
 double Q2HX711::read() {

@@ -1,7 +1,7 @@
 /**
    Author: Elliott Waterman
    Date Created: 11/01/2019
-   Date Last Modified: 10/02/2019
+   Date Last Modified: 17/02/2019
    Description: Complete program to run the arduino in the
    Smart Boa Snake Basking Station.
 */
@@ -35,15 +35,19 @@
 
 
 /* Constants */
+// RTC
 const byte RTC_ALARM_TIME_INTERVAL = 5;   //Sets the wakeup intervall in minutes
-
-const byte RFID_TAG_BUFFER_SIZE = 128;
-
-const int HX711_TIME_READ_INTERVAL = 1;       //Interval in seconds to read sensor
-const int HX711_WEIGHT_BOUNDARY_TRIGGER = 25; //weightDifference in weight to "detect" snake
-const int DHT22_TIME_READ_INTERVAL = 2000;
 const int RTC_TIME_READ_INTERVAL = 1500;
-const byte RFID_POWER_ON_SECONDS = 20;
+
+// RFID
+const byte RFID_TAG_BUFFER_SIZE = 48;     // Maximum RFID tag size is 33
+const byte INITIAL_RFID_POWER_ON_SECONDS = 20;
+
+// Weight sensor
+const int HX711_TIME_READ_INTERVAL = 1;       //Interval in seconds to read sensor
+
+// Temperature
+const int DHT22_TIME_READ_INTERVAL = 2000;
 
 
 /* INSTANTIATE LIBRARIES */
@@ -55,23 +59,25 @@ Q2HX711 HX711(PIN_HX711_DATA, PIN_HX711_CLOCK);       //Controls the HX711 modul
 
 
 /* VARIABLES */
+// Temperature
 float DHT22Temperature;
 float DHT22Humidity;
-
-// Instead of using delay() read time and check above x amount
-time_t HX711TimeRead;
 long DHT22TimeRead;
+
+// Weight sensor
+time_t HX711TimeRead;
+double HX711Weight = 0;
+double HX711WeightPrevious = 0;
+
+// RTC
 long RTCTimeRead;
-time_t RFIDPowerOnTimer = 0;
 
 // RFID variables
+unsigned long RFIDPowerOnTime = 0;
+byte RFIDPowerOnSeconds = INITIAL_RFID_POWER_ON_SECONDS;  // Seconds powered on not over 255 (4 mins 15 secs)
 static char RFIDTag[RFID_TAG_BUFFER_SIZE];
 static byte RFIDTagIndex;
 String RFIDTagString;
-
-// HX711 weight sensor variables
-double HX711Weight = 0;
-double HX711WeightPrevious = 0;
 
 // DEBUG
 bool DEBUGOnce = true;
@@ -133,82 +139,55 @@ void setup() {
 
 /* LOOP */
 void loop() {
-  // Get this loops time 
-  time_t currentTime = RTC.get();
+  // Get this loops time
+  unsigned long currentMillis = millis();
+  time_t currentEpoch = RTC.get();
 
-  HX711.testFunction2();
+  // Check HX711 weight sensor for change in weight
+  HX711.update();
 
-  // Check HX711 weight sensor
-  HX711.update(currentTime);
+  // If a weight has been detected turn on RFID module
+  if (HX711.getWeightDetected()) {
+    // Turn on RFID module
+    digitalWrite(PIN_RFID_POWER, HIGH);
+    digitalWrite(LED_BUILTIN, HIGH);  // DEBUG LED
 
-  if (RTC.get() - HX711TimeRead >= HX711_TIME_READ_INTERVAL) {
-    if (HX711.readyToSend()) {
-      // Set old weight to compare with new weight
-      HX711WeightPrevious = HX711Weight;
-      // Check current weight for snake entering basking station
-      HX711Weight = HX711.read();
-      // Update time sensor was checked
-      HX711TimeRead = RTC.get();
-
-      // Current weight is greater than previous weight by x amount
-      double weightDifference = HX711Weight - HX711WeightPrevious;
-      if (RFIDPowerOnTimer == 0 && weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
-        // DEBUG
-        Serial.print(HX711Weight);
-        Serial.print(" grams. Diff: ");
-        Serial.print(weightDifference);
-        Serial.println(" grams");
-
-        // Turn on RFID module
-        digitalWrite(PIN_RFID_POWER, HIGH);
-        digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on DEBUG
-        // Start timer to keep RFID power on
-        RFIDPowerOnTimer = RTC.get();
-        // DEBUG
-        DEBUGSecondDisplay(RFIDPowerOnTimer);
-      }
-      else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
-        // Weight is decreasing.. TODO?
-      }
-    }
+    // Start timer to keep RFID power on
+    RFIDPowerOnTime = currentMillis;
   }
 
-  // RFID module is on so read tags and update power status
-  if (RFIDPowerOnTimer != 0) {
-    // DEBUG
-    //DEBUGSecondDisplay(RTC.get());
-    // RFID has been on for long enough to read tag
-    if (RTC.get() - RFIDPowerOnTimer >= RFID_POWER_ON_SECONDS) {
-      // DEBUG
-      DEBUGSecondDisplay("RFID off.");
-      // Turn off RFID module
-      digitalWrite(PIN_RFID_POWER, LOW);
-      digitalWrite(LED_BUILTIN, LOW);    //Turn built-in LED off DEBUG
-      // Reset timer variable
-      RFIDPowerOnTimer = 0;
-    }
-    else
-    {
-      // DEBUG
-      DEBUGSecondDisplay(readRFIDTag());
-
-      // Get any incoming RFID data
-      if (readRFIDTag()) {
-        Serial.println("RFID Tag: " + RFIDTagString);
-        Serial.println("Time Difference Test: " + (RTC.get() - RFIDPowerOnTimer));
-        
-        // Keep RFID module on for longer to see if any extra tags are read
-        RFIDPowerOnTimer = RTC.get();
-
-        // Get temperature
-        dht22ReadFromSensor();
-        Serial.print(DHT22Temperature);
-        Serial.print(" C  and  ");
-        Serial.print(DHT22Humidity);
-        Serial.println(" %RH");
+  // RFID module is ON so read tags and update power status
+  if (currentMillis - RFIDPowerOnTime <= RFIDPowerOnSeconds) {
+    // Try read an RFID tag
+    if (readRFIDTag()) {
+      Serial.println("RFID Tag: " + RFIDTagString);
+      Serial.println("Time Difference Test: " + (currentMillis - RFIDPowerOnTime));
+      
+      // Keep RFID module on for longer to see if any extra tags are read
+      if (RFIDPowerOnSeconds == INITIAL_RFID_POWER_ON_SECONDS) {
+        // Restart RFID power on count down timer
+        RFIDPowerOnTime = currentMillis;
       }
+
+      // Read current temperature
+      dht22ReadFromSensor();
+      Serial.print(DHT22Temperature);
+      Serial.print(" C  and  ");
+      Serial.print(DHT22Humidity);
+      Serial.println(" %RH");
     }
   }
+  // RFID module has elapsed power on time so turn OFF
+  else if (currentMillis - RFIDPowerOnTime >= RFIDPowerOnSeconds)
+  {
+    // Turn off RFID module
+    digitalWrite(PIN_RFID_POWER, LOW);
+    digitalWrite(LED_BUILTIN, LOW);  // DEBUG LED
+
+    // Reset power on timer
+    RFIDPowerOnTime = 0;
+  }
+  
 
   // Get any incoming SIM900 data
   //readSIM900();

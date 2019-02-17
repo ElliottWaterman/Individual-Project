@@ -10,6 +10,8 @@
 #define SCALE_FACTOR 712.0
 #define ADJUST_AVERAGE 534
 
+const byte HX711_WEIGHT_BOUNDARY_TRIGGER = 25; // difference in weight to "detect" snake
+
 class Q2HX711
 {
 	protected:
@@ -31,11 +33,13 @@ class Q2HX711
 		void updateAverage(long incomingData);	// internal func to calc average
 		//long smoothedAverage();					// remove top and bottom value
 
-		time_t previousTime;
-		unsigned long timeInterval;
+		unsigned long previousMillis;
+		unsigned long millisInterval;
 		
 		double currentWeight;
 		double previousWeight;
+
+		boolean weightDetected;
 
 	public:
 		Q2HX711(byte output_pin, byte clock_pin);	// constructor
@@ -44,8 +48,9 @@ class Q2HX711
 		double read();
 		
 		// Elliott
-		void update(time_t currentTime);
-		void testFunction2();
+		void update();
+		boolean getWeightDetected();
+		void resetWeightDetected();
 
 		long getAverage();
 		long getInitialZeroPosition();
