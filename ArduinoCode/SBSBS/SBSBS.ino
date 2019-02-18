@@ -54,7 +54,8 @@ const int DHT22_TIME_READ_INTERVAL = 2000;
 /* INSTANTIATE LIBRARIES */
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
 
-RFID_P1D RFID(PIN_RFID_RX, PIN_RFID_TX, PIN_RFID_POWER);              //Controls the RFID module
+SoftwareSerial RFID_Serial(PIN_RFID_RX, PIN_RFID_TX); // Create soft serial to pass to RFID_P1D class
+RFID_P1D RFID(&RFID_Serial, PIN_RFID_POWER);           //Controls the RFID module
 
 SimpleDHT22 DHT22(PIN_DHT22);                         //Controls the DHT22 module
 
@@ -87,6 +88,17 @@ String RFIDTagString;
 bool DEBUGOnce = true;
 unsigned long DEBUGStartTime;
 
+
+struct snakeData {
+  time_t epochTime;
+  String rfidTag;
+  float temperature;
+  float humidity;
+  float weight; // highest and lowest?
+};
+struct snakeData SnakeData;
+
+
 /* SETUP */
 void setup() {
   // Serial communications
@@ -95,6 +107,8 @@ void setup() {
 
   // Start software serial communication with SIM and RFID modules
   SIM900.begin(9600);
+
+  Serial.println(sizeof(PIN_RFID_POWER));
 
   // Initialise weight sensor
   Serial.println("Initialising weight sensor");
@@ -140,6 +154,7 @@ void setup() {
   Serial.println("Setup Complete!");
 }
 
+
 /* LOOP */
 void loop() {
   // Get time for this loop
@@ -155,7 +170,7 @@ void loop() {
     RFID.powerUp();
 
     // Reset weight detection
-    HX711.resetWeightDetected();
+    HX711.resetWeightDetected();  // TODO: maybe move to building SnakeData
   }
 
   // Read tags or turn off module if elapsed time on, only runs if module is ON
@@ -163,12 +178,28 @@ void loop() {
 
   // Check if tag has been read
   if (RFID.hasTagBeenRead()) {
+    // Assign epoch time
+    SnakeData.epochTime = RTC.get();
 
-    // Collect temperature data
+    // Assign RFID tag
+    SnakeData.rfidTag = RFID.getMessage();
+
+    // Collect and assign temperature data
     dht22ReadFromSensor();
+    SnakeData.temperature = DHT22Temperature;
+    SnakeData.humidity = DHT22Humidity;
 
+    // Get and assign weight data
+    SnakeData.weight = HX711.getCurrentWeight();  // TODO: Get correct data
+
+    // TODO: Store on SD card, or make SnakeData an array with an index
+
+    // TODO: What about skink tag reads?
     // Reset RFID tag read
     RFID.resetTagRead();
+
+    // Reset weight detection
+    HX711.resetWeightDetected();
   }
 
   // Read current temperature
@@ -193,13 +224,6 @@ void loop() {
       // Sleep Arduino
 }
 
-struct Message {
-  time_t epochTime;
-  String rfidTag;
-  float temperature;
-  float weight; // highest and lowest?
-};
-
 
 /* FUNCTIONS */
 template <class T> void DEBUGSecondDisplay(const T toDisplay) {
@@ -210,32 +234,7 @@ template <class T> void DEBUGSecondDisplay(const T toDisplay) {
 }
 
 /**
- * Function to listen and read in an RFID tag from software serial
- */
-boolean readRFIDTag() {
-  // Listen to serial port for RFID communication
-  RFID.listen();
-  while (RFID.available() && RFIDTagIndex < (RFID_TAG_BUFFER_SIZE - 1)) {
-    // Read incoming character/byte
-    char inByte = RFID.read();
-    RFIDTag[RFIDTagIndex++] = inByte;
-
-    // Entire message has been received
-    if (inByte == '\r') {               // '\r' means "end of message"
-      RFIDTag[--RFIDTagIndex] = '\0';   // Terminate the RFIDTag replacing '\r'
-      RFIDTagString = String(RFIDTag);  // Set string tag to received tag
-
-      // Message has been dealt with, reset RFIDTag position
-      RFIDTagIndex = 0;
-
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Function TODO
+ * Function to read messages from the SIM900 module
  */
 void readSIM900() {
   SIM900.listen();

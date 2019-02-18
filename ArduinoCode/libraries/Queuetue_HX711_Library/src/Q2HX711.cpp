@@ -1,5 +1,4 @@
 #include "Q2HX711.h"
-#include <Arduino.h>
 
 /**
  * Constructor
@@ -31,31 +30,26 @@ void Q2HX711::update() {
       previousWeight = currentWeight;
 
       // Check current weight for snake entering basking station
-      currentWeight = read();
+      read();
 
       // Update the time the sensor was checked
 			previousMillis = currentMillis;
 
       // Current weight is greater than previous weight by x amount
-      double weightDifference = currentWeight - previousWeight;
+      double weightDifference = normaliseLongToWeight(currentWeight) - normaliseLongToWeight(previousWeight);
       if (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
 				weightDetected = true;
       }
       else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
         // Weight is decreasing.. TODO?
       }
-    }
-	}
-}
+    } // End readyToSend function
+	} // End regular time update
+} // End update function
 
-boolean Q2HX711::getWeightDetected() {
-	return weightDetected;
-}
-
-void Q2HX711::resetWeightDetected() {
-	weightDetected = false;
-}
-
+/**
+ * Function to read the current value from the weight sensor
+ */
 double Q2HX711::read() {
   // TODO: do not want to get stuck in infinite loop
   while (!readyToSend());
@@ -77,25 +71,25 @@ double Q2HX711::read() {
   // XOR with 1000 0000 (MSB). Set to 1 if data is 0, set to 0 if data is 1.
   data[2] ^= 0x80;
   
-  long value = ((uint32_t) data[2] << 16) | ((uint32_t) data[1] << 8) | (uint32_t) data[0];
+  currentWeight = ((uint32_t) data[2] << 16) | ((uint32_t) data[1] << 8) | (uint32_t) data[0];
   
   // Add data to average buffer
-  updateAverage(value);
+  updateAverage(currentWeight);
   
-  // Return weight in grams
-  if (initialZeroPosition == 0) {
-	  return abs((value - average) / SCALE_FACTOR);
-  }
-  else {
-	 return abs((value - initialZeroPosition) / SCALE_FACTOR);
-  }
+  return normaliseLongToWeight(currentWeight);
 }
 
+/**
+ * Function to update the averaging array with a new reading 
+ * and calculate the total and average of the array
+ */
 void Q2HX711::updateAverage(long incomingValue) {
 	// Remove last reading from the total
 	total = total - averageWeights[readIndex];
+
 	// Update with current reading
 	averageWeights[readIndex] = incomingValue;
+
 	// Add current reading to the total
 	total = total + incomingValue;
 
@@ -104,12 +98,12 @@ void Q2HX711::updateAverage(long incomingValue) {
 
 	readIndex++;
 
-	// more accurate at first use (could remove - as setup instead)
+	// More accurate at first use (could remove - as setup instead)
 	if ((initialZeroPosition == 0) && (readIndex < NUM_OF_READINGS)) {
 		average = total / readIndex;
 	}
 
-	// Reached end of array wrap to beginning index
+	// Reached end of array, wrap index back to beginning
 	if (readIndex >= NUM_OF_READINGS) {
 		readIndex = 0;
 		// If startup average not set then set now
@@ -119,8 +113,33 @@ void Q2HX711::updateAverage(long incomingValue) {
 			if (setupSensor) {
 				isSensorSetup = true;
 			}
-		}
-	}
+		} // End set initialZeroPosition if
+	} // End wrap index if
+} // End updateAverage function
+
+/**
+ * Function to convert a Long into normalised weight in grams
+ */
+double Q2HX711::normaliseLongToWeight(long reading) {
+  // Check initial zero has been set
+  if (initialZeroPosition == 0) {
+	  return abs((reading - average) / SCALE_FACTOR);
+  }
+  else {
+	 return abs((reading - initialZeroPosition) / SCALE_FACTOR);
+  }
+}
+
+double Q2HX711::getCurrentWeight() {
+  return normaliseLongToWeight(currentWeight);
+}
+
+boolean Q2HX711::getWeightDetected() {
+	return weightDetected;
+}
+
+void Q2HX711::resetWeightDetected() {
+	weightDetected = false;
 }
 
 long Q2HX711::getAverage() {

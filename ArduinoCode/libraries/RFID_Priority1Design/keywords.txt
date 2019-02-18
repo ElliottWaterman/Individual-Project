@@ -4,9 +4,12 @@ RFID_P1D    KEYWORD1
 
 # Methods and Functions (KEYWORD2)
 
-update      KEYWORD2
-readMessage KEYWORD2
-powerDown   KEYWORD2
-powerUp     KEYWORD2
+update          KEYWORD2
+readMessage     KEYWORD2
+getMessage      KEYWORD2
+hasTagBeenRead  KEYWORD2
+resetTagRead    KEYWORD2
+powerDown       KEYWORD2
+powerUp         KEYWORD2
 
 # Constants (LITERAL1)

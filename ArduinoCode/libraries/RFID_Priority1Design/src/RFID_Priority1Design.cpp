@@ -1,15 +1,15 @@
 #include "RFID_Priority1Design.h"
-#include <Arduino.h>
 
 /**
  * Constructor
  */
-RFID_P1D::RFID_P1D(byte rx_pin, byte tx_pin, byte power_pin) {
-    RX_PIN = rx_pin;
-    TX_PIN = tx_pin;
-    POWER_PIN = power_pin;
-    RFID = new SoftwareSerial(RX_PIN, TX_PIN);
-    RFID.begin(9600);
+RFID_P1D::RFID_P1D(SoftwareSerial *rfidSerial, byte power_pin) {
+    // Set software serial pointer
+    RFID = rfidSerial;
+    RFID->begin(9600);
+
+    // Set power control pin on Arduino
+    POWER_PIN = (byte) power_pin;
 
     // TODO: Could set reader active here (SRA<crn>)
 
@@ -68,10 +68,10 @@ void RFID_P1D::update() {
  */
 boolean RFID_P1D::readMessage() {
     // Listen to serial port for RFID communication
-    RFID.listen();
-    while (RFID.available() && messageIndex < (MAX_RFID_MESSAGE_SIZE - 1)) {
+    RFID->listen();
+    while (RFID->available() && messageIndex < (MAX_RFID_MESSAGE_SIZE - 1)) {
         // Read incoming character/byte and add to raw message array
-        char inByte = RFID.read();
+        char inByte = RFID->read();
         rawMessage[messageIndex++] = inByte;
 
         // Entire message has been received, '\r' means "end of message"
@@ -94,6 +94,10 @@ boolean RFID_P1D::readMessage() {
     return false;
 }
 
+String RFID_P1D::getMessage() {
+    return message;
+}
+
 boolean RFID_P1D::hasTagBeenRead() {
 	return tagRead;
 }
@@ -106,7 +110,7 @@ void RFID_P1D::resetTagRead() {
  * Function to power the module OFF, does nothing if pin not defined
  */
 void RFID_P1D::powerDown() {
-    if (poweredOn && POWER_PIN != null) {
+    if (poweredOn && POWER_PIN != NULL) {
         // Turn off module
         digitalWrite(POWER_PIN, LOW);
         // Set power state to off
@@ -120,7 +124,7 @@ void RFID_P1D::powerDown() {
  * Function to power the module ON, does nothing if pin not defined
  */
 void RFID_P1D::powerUp() {
-    if (!poweredOn && POWER_PIN != null) {
+    if (!poweredOn && POWER_PIN != NULL) {
         // Turn on module
         digitalWrite(POWER_PIN, HIGH);
         // Set power state to on
