@@ -6,14 +6,15 @@
 // RX on Arduino (use tx wire on board)
 // TX on Arduino (use rx wire on board)
 // Use Carriage return and 57600 baud
-SoftwareSerial mySerial(8, 9);
+SoftwareSerial RFID(8, 9);
 
 void setup() {
   // Open serial communications and wait for port to open:
-  Serial.begin(57600);
+  Serial.begin(9600);
   Serial.println("Goodnight moon!");
 
-  mySerial.begin(9600);
+  RFID.begin(9600);
+  RFID.listen();
 }
 
 #define BUFFER_SIZE (256)
@@ -26,9 +27,23 @@ static int tagPresentPos;
 int recievedTagInfo = 0;
 
 void loop() {
-  if (mySerial.available() && buffer_pos < (BUFFER_SIZE - 1)) {
+  if (RFID.listen()) {
+    Serial.printlln("Cannot listen!");
+  }
+  
+  if (RFID.available() && buffer_pos < (BUFFER_SIZE - 1)) {
+    Serial.print("available: ");
+    Serial.print(RFID.available());
+
+    Serial.print(", buffer_pos: ");
+    Serial.print(buffer_pos);
+
+    Serial.print(", buffer size: ");
+    Serial.println(buffer_pos < (BUFFER_SIZE - 1) ? "true" : "false");
+
+
     // Read incoming character/byte
-    char c = mySerial.read();
+    char c = RFID.read();
     buffer[buffer_pos++] = c;
 
     // Entire message has been received
@@ -41,13 +56,13 @@ void loop() {
         if (buffer_pos == 17) {
           recievedTagInfo = 0;
           Serial.println("Test for tag to leave:");
-          mySerial.write("LTG\r");
+          RFID.write("LTG\r");
         }
         //recievedTagInfo = (buffer_pos == 17) ? 1 : recievedTagInfo;
         
         if (ack.equals("OK\r")) {
           tagPresent[tagPresentPos++] = 1;
-          mySerial.write("LTG\r");  // Ask for tag again
+          RFID.write("LTG\r");  // Ask for tag again
         }
         else if (ack.equals("?1\r")) {
           tagPresent[tagPresentPos++] = 0;
@@ -72,9 +87,9 @@ void loop() {
   }
 //
 //  if (recievedTagInfo) {
-//    mySerial.write("LTG\r");
+//    RFID.write("LTG\r");
 //    char locate[] = {0x4C, 0x54, 0x47, 0x0D};
-//    mySerial.write(locate); //4C 54 47 0D
+//    RFID.write(locate); //4C 54 47 0D
 //    Serial.println("running");
 //    
 //    //Serial.println("Sent command");
@@ -82,7 +97,7 @@ void loop() {
   
   // Send messages from Serial Montior to RFID module
   if (Serial.available()) {
-    mySerial.write(Serial.read());
+    RFID.write(Serial.read());
   }
 }
 

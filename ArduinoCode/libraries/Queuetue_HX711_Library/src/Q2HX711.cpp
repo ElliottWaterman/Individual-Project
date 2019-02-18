@@ -7,8 +7,12 @@ Q2HX711::Q2HX711(byte output_pin, byte clock_pin) {
   CLOCK_PIN  = clock_pin;
   OUT_PIN  = output_pin;
   GAIN = 1;
+  // Set pin states
   pinMode(CLOCK_PIN, OUTPUT);
   pinMode(OUT_PIN, INPUT);
+
+  // Set up vars
+  millisInterval = 1000;
 }
 
 /**
@@ -39,6 +43,9 @@ void Q2HX711::update() {
       double weightDifference = normaliseLongToWeight(currentWeight) - normaliseLongToWeight(previousWeight);
       if (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
 				weightDetected = true;
+
+        Serial.print("Weight change detected: ");
+        Serial.println(weightDifference);
       }
       else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
         // Weight is decreasing.. TODO?

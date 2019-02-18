@@ -6,16 +6,20 @@
 RFID_P1D::RFID_P1D(SoftwareSerial *rfidSerial, byte power_pin) {
     // Set software serial pointer
     RFID = rfidSerial;
+
+    // Start communication
     RFID->begin(9600);
+    RFID->listen();
 
     // Set power control pin on Arduino
-    POWER_PIN = (byte) power_pin;
+    POWER_PIN = power_pin;
 
     // TODO: Could set reader active here (SRA<crn>)
+    //RFID->write("SRA" + (char)13);
 
     // Setup variables
     // Power and timing
-    poweredOn = true;       // Starts turned on
+    poweredOn = false;       // Starts turned off as Arduino pin is low
     powerOnMillis = -1;
     totalPowerOnMillis = INITIAL_POWER_ON_MILLIS;
     // Message
@@ -42,15 +46,25 @@ void RFID_P1D::update() {
         if (currentMillis - powerOnMillis <= totalPowerOnMillis) {
             // Message has been read so keep module on for longer
             if (readMessage()) {
+                Serial.println("RFID tag read!");
+
                 // Only extend once the power on time
                 if (totalPowerOnMillis == INITIAL_POWER_ON_MILLIS) {
                     // Increase power on millis by elapsed time
                     totalPowerOnMillis += (currentMillis - powerOnMillis);
+
+                    Serial.print("Extended power on time: ");
+                    Serial.print(INITIAL_POWER_ON_MILLIS / 1000);
+                    Serial.print(" to ");
+                    Serial.print(totalPowerOnMillis / 1000);
+                    Serial.println(" seconds.");
                 }
             }
         }
         // Module has elapsed power on time so turn OFF
         else if (currentMillis - powerOnMillis > totalPowerOnMillis) {
+            Serial.println("RFID Powering down");
+
             // Turn off module
             powerDown();
 
@@ -68,7 +82,11 @@ void RFID_P1D::update() {
  */
 boolean RFID_P1D::readMessage() {
     // Listen to serial port for RFID communication
-    RFID->listen();
+    //RFID->listen();
+    if (RFID->listen()) {
+        Serial.println("Cannot listen to RFID!");
+    }
+
     while (RFID->available() && messageIndex < (MAX_RFID_MESSAGE_SIZE - 1)) {
         // Read incoming character/byte and add to raw message array
         char inByte = RFID->read();
@@ -104,6 +122,10 @@ boolean RFID_P1D::hasTagBeenRead() {
 
 void RFID_P1D::resetTagRead() {
 	tagRead = false;
+}
+
+boolean RFID_P1D::getPowerStatus() {
+    return poweredOn;
 }
 
 /**

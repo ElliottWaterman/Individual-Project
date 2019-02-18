@@ -27,6 +27,7 @@ class RFID_P1D
         // Power funcs
         void powerDown();
         void powerUp();
+        boolean getPowerStatus();
         
     protected:
         SoftwareSerial *RFID;   // Serial communication by simulating serial on Arduino pins (pointer to SoftSerial in SBSBS)

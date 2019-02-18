@@ -14,10 +14,11 @@
 #include <DS3232RTC.h>      //RTC library used to control the RTC module
 #include <SimpleDHT.h>      //DHT22 library used to read from a DHT22 module
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
-#include <RFID_Priority1Design.h> //HX711 library used to read weight sensor (amplifier + load cell)
+#include <RFID_Priority1Design.h> //RFID_P1D library used to read animal FBD-X tags
 
 
 /* DEFINES */
+// These are integers but should be const byte X = 4;!
 #define PIN_WAKE_UP       2   //Interrupt pin (or #3) to wake up the Arduino
 #define PIN_DHT22         3   //Digital pin connected to the DHT22 module
 #define PIN_RFID_POWER    4   //Digital pin connected BJT/MOSFET switch to power module
@@ -54,8 +55,8 @@ const int DHT22_TIME_READ_INTERVAL = 2000;
 /* INSTANTIATE LIBRARIES */
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
 
-SoftwareSerial RFID_Serial(PIN_RFID_RX, PIN_RFID_TX); // Create soft serial to pass to RFID_P1D class
-RFID_P1D RFID(&RFID_Serial, PIN_RFID_POWER);           //Controls the RFID module
+SoftwareSerial RFID_Serial(PIN_RFID_RX, PIN_RFID_TX); //Create soft serial to pass to RFID_P1D class
+RFID_P1D RFID(&RFID_Serial, PIN_RFID_POWER);          //Controls the RFID module
 
 SimpleDHT22 DHT22(PIN_DHT22);                         //Controls the DHT22 module
 
@@ -106,9 +107,7 @@ void setup() {
   Serial.println("Setup Begin");
 
   // Start software serial communication with SIM and RFID modules
-  SIM900.begin(9600);
-
-  Serial.println(sizeof(PIN_RFID_POWER));
+  //SIM900.begin(9600);
 
   // Initialise weight sensor
   Serial.println("Initialising weight sensor");
@@ -171,6 +170,8 @@ void loop() {
 
     // Reset weight detection
     HX711.resetWeightDetected();  // TODO: maybe move to building SnakeData
+
+    Serial.println("RFID powering on");
   }
 
   // Read tags or turn off module if elapsed time on, only runs if module is ON
@@ -191,6 +192,10 @@ void loop() {
 
     // Get and assign weight data
     SnakeData.weight = HX711.getCurrentWeight();  // TODO: Get correct data
+
+    Serial << SnakeData.epochTime << F(", ") << SnakeData.rfidTag << F(", ");
+    Serial << SnakeData.temperature << F(", ") << SnakeData.humidity << F(", ");
+    Serial << SnakeData.weight << endl;
 
     // TODO: Store on SD card, or make SnakeData an array with an index
 
