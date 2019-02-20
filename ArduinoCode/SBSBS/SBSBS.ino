@@ -1,12 +1,14 @@
 /**
    Author: Elliott Waterman
    Date Created: 11/01/2019
-   Date Last Modified: 17/02/2019
+   Date Last Modified: 20/02/2019
    Description: Complete program to run the arduino in the
    Smart Boa Snake Basking Station.
 */
 
+
 /* INCLUDES */
+#include <Arduino.h>        //Standard library
 #include <avr/sleep.h>      //AVR library contains methods and sleep modes to control the sleep of an Arduino
 #include <Streaming.h>      //Used to make print statements easier to write
 
@@ -32,11 +34,10 @@
 #define PIN_HX711_CLOCK   A3  //Weight sensor clock pin
 #define PIN_RTC_SDA       A4  //Connect RTC data to Arduino pin A4
 #define PIN_RTC_SCL       A5  //Connect RTC clock to Arduino pin A5
-
 //#define EXAMPLE           1   //Comment
 
 
-/* Constants */
+/* CONSTANTS */
 // RTC
 const byte RTC_ALARM_TIME_INTERVAL = 5;   //Sets the wakeup intervall in minutes
 const int RTC_TIME_READ_INTERVAL = 1500;
@@ -51,8 +52,22 @@ const int HX711_TIME_READ_INTERVAL = 1;       //Interval in seconds to read sens
 // Temperature
 const int DHT22_TIME_READ_INTERVAL = 2000;
 
+// Snake structure recordings
+/*
+ * 12 hours in a day to bask in sun, 8am to 8 pm.
+ * 30 minutes basking time means 24 snakes in one day.
+ * Double just in case means ~50 snakes, or 2 days worth of recordings.
+ */
+const byte MAX_SNAKE_RECORDINGS = 5;
+/*
+ * The number of RFID tags read in one weight detection.
+ * Includes the SNAKE tag and any SKINK tags.
+ * So 1 snake and up to 4 skinks that have been eaten.
+ */
+const byte MAX_RFID_TAGS = 5;
 
-/* INSTANTIATE LIBRARIES */
+
+/* LIBRARIES INSTANTIATED */
 SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
 
 SoftwareSerial RFID_Serial(PIN_RFID_RX, PIN_RFID_TX); //Create soft serial to pass to RFID_P1D class
@@ -90,14 +105,18 @@ bool DEBUGOnce = true;
 unsigned long DEBUGStartTime;
 
 
+/* STRUCTURES */
 struct snakeData {
   time_t epochTime;
-  String rfidTag;
+  String rfidTag[MAX_RFID_TAGS];
+  byte rfidTagIndex = 0;
   float temperature;
   float humidity;
   float weight; // highest and lowest?
 };
-struct snakeData SnakeData;
+struct snakeData SnakeData[MAX_SNAKE_RECORDINGS];
+byte SnakeIndex = 0;
+
 
 
 /* SETUP */
@@ -151,6 +170,7 @@ void setup() {
   DEBUGStartTime = millis();
 
   Serial.println("Setup Complete!");
+  Serial.println("To start: Trigger weight sensor, then scan RFID tags");
 }
 
 
@@ -167,11 +187,6 @@ void loop() {
   if (HX711.getWeightDetected()) {
     // Turn on RFID module, only executes if module is OFF
     RFID.powerUp();
-
-    // Reset weight detection
-    HX711.resetWeightDetected();  // TODO: maybe move to building SnakeData
-
-    Serial.println("RFID powering on");
   }
 
   // Read tags or turn off module if elapsed time on, only runs if module is ON
@@ -179,40 +194,43 @@ void loop() {
 
   // Check if tag has been read
   if (RFID.hasTagBeenRead()) {
-    // Assign epoch time
-    SnakeData.epochTime = RTC.get();
+    // First tag that has been read since power up, must be a SNAKE tag
+    if (RFID.isFirstTagSincePowerUp()) {
+      // Collect and assign data to snake recordings
+      recordSnakeData();
 
-    // Assign RFID tag
-    SnakeData.rfidTag = RFID.getMessage();
-
-    // Collect and assign temperature data
-    dht22ReadFromSensor();
-    SnakeData.temperature = DHT22Temperature;
-    SnakeData.humidity = DHT22Humidity;
-
-    // Get and assign weight data
-    SnakeData.weight = HX711.getCurrentWeight();  // TODO: Get correct data
-
-    Serial << SnakeData.epochTime << F(", ") << SnakeData.rfidTag << F(", ");
-    Serial << SnakeData.temperature << F(", ") << SnakeData.humidity << F(", ");
-    Serial << SnakeData.weight << endl;
+      // Reset reading the first RFID tag since power up
+      RFID.resetFirstTagSincePowerUp();
+    }
+    // Further tags have been read, probably a SKINKS tag
+    else {
+      // Save RFID tag to snake data array of tags
+      recordSkinkTags();
+    }
 
     // TODO: Store on SD card, or make SnakeData an array with an index
 
-    // TODO: What about skink tag reads?
     // Reset RFID tag read
     RFID.resetTagRead();
-
-    // Reset weight detection
-    HX711.resetWeightDetected();
   }
 
-  // Read current temperature
-  // dht22ReadFromSensor();
-  // Serial.print(DHT22Temperature);
-  // Serial.print(" C  and  ");
-  // Serial.print(DHT22Humidity);
-  // Serial.println(" %RH");
+  // RFID module turned off in update function and weight detect flag is still true
+  if (!RFID.getPowerStatus() && HX711.getWeightDetected()) {
+    // Reset weight detection
+    HX711.resetWeightDetected();
+
+    Serial.println("Weight detection reset");
+
+    // Increase snake index for next snake, all RFID tags should have been read
+    SnakeIndex++;
+    // If snake data index is over max records
+    if (SnakeIndex >= MAX_SNAKE_RECORDINGS) {
+      // Reset snake data indexing
+      SnakeIndex = 0;
+    }
+
+    Serial.print("Snakes: "); Serial.println(SnakeIndex);
+  }
 
   // Get any incoming SIM900 data
   //readSIM900();
@@ -231,6 +249,54 @@ void loop() {
 
 
 /* FUNCTIONS */
+void recordSnakeData() {
+  // Assign epoch time
+  SnakeData[SnakeIndex].epochTime = RTC.get();
+  // Assign RFID tag and increase index
+  SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex++] = RFID.getMessage();
+
+  // Collect and assign temperature data
+  dht22ReadFromSensor();
+  SnakeData[SnakeIndex].temperature = DHT22Temperature;
+  SnakeData[SnakeIndex].humidity = DHT22Humidity;
+
+  // Get and assign weight data
+  SnakeData[SnakeIndex].weight = HX711.getHighestDetectedWeight();
+  // Reset highest detected weight
+  HX711.resetHighestDetectedWeight();
+
+  // DEBUG
+  printSnakeData();
+}
+
+void recordSkinkTags() {
+  if (SnakeData[SnakeIndex].rfidTagIndex < MAX_RFID_TAGS) {
+    // Add tag to list of tags in the snake
+    SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex++] = RFID.getMessage();
+  }
+  else {
+    // Too many skinks been eaten, over MAX_RFID_TAGS (5)
+    Serial.println("Too many snake/skink tags read!");
+  }
+}
+
+void printSnakeData() {
+  Serial << SnakeData[SnakeIndex].epochTime << F(" or ");
+  printDateTime(SnakeData[SnakeIndex].epochTime);
+  Serial << F(", ") << SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex-1] << F(", ");
+  Serial << SnakeData[SnakeIndex].temperature << F(", ") << SnakeData[SnakeIndex].humidity << F(", ");
+  Serial << SnakeData[SnakeIndex].weight << F(" vs ") << HX711.getCurrentWeight() << endl;
+}
+
+void printDateTime(time_t t) {
+  Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
+  Serial << monthShortStr(month(t));
+  Serial << _DEC(year(t)) << ' ';
+  Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
+  Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
+  Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t));
+}
+
 template <class T> void DEBUGSecondDisplay(const T toDisplay) {
   if (millis() - DEBUGStartTime > 1000) {
     Serial.println(toDisplay);
@@ -274,25 +340,10 @@ void dht22ReadFromSensor() {
   int function_success = DHT22.read2(&DHT22Temperature, &DHT22Humidity, NULL);
   //Check return value is NOT equal to constant for success
   if (function_success != SimpleDHTErrSuccess) {
-    Serial.print("Read DHT22 failed, err=");
-    Serial.println(function_success);
-    //delay(2000);
-    return;
+    Serial.print("Read DHT22 failed, err: ");
+    Serial.println(function_success, HEX);
   }
   //TODO: Could return success value?
-}
-
-/**
- * Function TODO
- */
-void printDateTime(time_t t)
-{
-  Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
-  Serial << monthShortStr(month(t));
-  Serial << _DEC(year(t)) << ' ';
-  Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
-  Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
-  Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t)) << endl;
 }
 
 /**

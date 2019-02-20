@@ -10,9 +10,6 @@ Q2HX711::Q2HX711(byte output_pin, byte clock_pin) {
   // Set pin states
   pinMode(CLOCK_PIN, OUTPUT);
   pinMode(OUT_PIN, INPUT);
-
-  // Set up vars
-  millisInterval = 1000;
 }
 
 /**
@@ -28,29 +25,42 @@ void Q2HX711::update() {
 	// Get current milliseconds
 	unsigned long currentMillis = millis();
 
-	if (currentMillis - previousMillis >= millisInterval) {
-		if (readyToSend()) {
-      // Set old weight to compare with new weight
-      previousWeight = currentWeight;
+	if (currentMillis - previousMillis >= millisInterval && readyToSend()) {
+    // Set old weight to compare with new weight
+    previousWeight = currentWeight;
 
-      // Check current weight for snake entering basking station
-      read();
+    // Check current weight for snake entering basking station
+    read();
 
-      // Update the time the sensor was checked
-			previousMillis = currentMillis;
+    // Update the time the sensor was checked
+    previousMillis = currentMillis;
 
-      // Current weight is greater than previous weight by x amount
-      double weightDifference = normaliseLongToWeight(currentWeight) - normaliseLongToWeight(previousWeight);
-      if (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
-				weightDetected = true;
+    // Current weight is greater than previous weight by x amount
+    long weightDifference = currentWeight - previousWeight;
+    if (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
+      // Set detect weight flag to true
+      weightDetected = true;
 
-        Serial.print("Weight change detected: ");
-        Serial.println(weightDifference);
-      }
-      else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
-        // Weight is decreasing.. TODO?
-      }
-    } // End readyToSend function
+      // Increase polling interval if weight detected (up to 10Hz or 80Hz)
+      millisInterval = 100;   // 0.1s
+
+      Serial.print("Weight change detected: ");
+      Serial.println(weightDifference);
+    }
+    else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
+      // Weight is decreasing.. TODO?
+      Serial.println("Weight decreasing");
+    }
+    
+    // Decrease polling interval if no weight detected
+    if (!weightDetected) {
+      millisInterval = 1000;  // 1s
+    }
+
+    // Set new highest detected weight and new lowest from array
+    if (weightDetected && highestDetectedWeight < currentWeight) {
+      highestDetectedWeight = currentWeight;
+    }
 	} // End regular time update
 } // End update function
 
@@ -141,28 +151,20 @@ double Q2HX711::getCurrentWeight() {
   return normaliseLongToWeight(currentWeight);
 }
 
+double Q2HX711::getHighestDetectedWeight() {
+  return normaliseLongToWeight(highestDetectedWeight);
+}
+
+void Q2HX711::resetHighestDetectedWeight() {
+  highestDetectedWeight = 0;
+}
+
 boolean Q2HX711::getWeightDetected() {
 	return weightDetected;
 }
 
 void Q2HX711::resetWeightDetected() {
 	weightDetected = false;
-}
-
-long Q2HX711::getAverage() {
-	return average;
-}
-
-long Q2HX711::getInitialZeroPosition() {
-	return initialZeroPosition;
-}
-
-long Q2HX711::getCurrentZeroPosition() {
-	return currentZeroPosition;
-}
-
-void Q2HX711::updateCurrentZeroPosition() {
-	
 }
 
 void Q2HX711::startSensorSetup() {

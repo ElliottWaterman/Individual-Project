@@ -124,6 +124,14 @@ void RFID_P1D::resetTagRead() {
 	tagRead = false;
 }
 
+boolean RFID_P1D::isFirstTagSincePowerUp() {
+    return firstTagSincePowerUp;
+}
+
+void RFID_P1D::resetFirstTagSincePowerUp() {
+    firstTagSincePowerUp = false;
+}
+
 boolean RFID_P1D::getPowerStatus() {
     return poweredOn;
 }
@@ -132,13 +140,15 @@ boolean RFID_P1D::getPowerStatus() {
  * Function to power the module OFF, does nothing if pin not defined
  */
 void RFID_P1D::powerDown() {
-    if (poweredOn && POWER_PIN != NULL) {
+    if (poweredOn && POWER_PIN != -1) {
         // Turn off module
         digitalWrite(POWER_PIN, LOW);
         // Set power state to off
         poweredOn = false;
 
+        // DEBUG
         digitalWrite(LED_BUILTIN, LOW);  // DEBUG LED
+        Serial.println("RFID powering down");
     }
 }
 
@@ -146,14 +156,21 @@ void RFID_P1D::powerDown() {
  * Function to power the module ON, does nothing if pin not defined
  */
 void RFID_P1D::powerUp() {
-    if (!poweredOn && POWER_PIN != NULL) {
+    if (!poweredOn && POWER_PIN != -1) {
         // Turn on module
         digitalWrite(POWER_PIN, HIGH);
+
         // Set power state to on
         poweredOn = true;
+
         // Save time in millis when module was turned on
         powerOnMillis = millis();
 
+        // Set flag for reading first tag after starting
+        firstTagSincePowerUp = true;
+
+        // DEBUG
         digitalWrite(LED_BUILTIN, HIGH);  // DEBUG LED
+        Serial.println("RFID powering up");
     }
 }
