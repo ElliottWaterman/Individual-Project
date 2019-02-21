@@ -10,7 +10,9 @@
 // const byte NUM_OF_READINGS = 16;
 // const uint16_t SCALE_FACTOR = 712;
 // const uint16_t ADJUST_AVERAGE = 500;
-const long HX711_WEIGHT_BOUNDARY_TRIGGER = 25 * SCALE_FACTOR; // Difference in weight to "detect" snake, x grams (17800)
+const long HX711_WEIGHT_BOUNDARY_TRIGGER = 17800l; // Difference in weight to "detect" snake, 17800 / 712 = 25 grams
+const unsigned short INITIAL_WEIGHT_POLLING = 1000;
+const unsigned short FAST_WEIGHT_POLLING = 100;
 
 class Q2HX711
 {
@@ -40,7 +42,7 @@ class Q2HX711
 
 		// Timing variables
 		unsigned long previousMillis;
-		unsigned long millisInterval = 1000;	// Can make smaller to read more often
+		unsigned long millisInterval = INITIAL_WEIGHT_POLLING;	// Can make smaller to read more often
 
 		// Functions
 		void updateAverage(long incomingData);		// Internal func to calc average
@@ -61,6 +63,7 @@ class Q2HX711
 		double getCurrentWeight();
 		double getHighestDetectedWeight();
 		void resetHighestDetectedWeight();
+		long getInitialZero();
 		//double getAverageWeight();
 
 		// Weight detection

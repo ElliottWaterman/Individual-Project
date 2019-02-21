@@ -58,7 +58,7 @@ const int DHT22_TIME_READ_INTERVAL = 2000;
  * 30 minutes basking time means 24 snakes in one day.
  * Double just in case means ~50 snakes, or 2 days worth of recordings.
  */
-const byte MAX_SNAKE_RECORDINGS = 5;
+const byte MAX_SNAKE_RECORDINGS = 2;
 /*
  * The number of RFID tags read in one weight detection.
  * Includes the SNAKE tag and any SKINK tags.
@@ -135,6 +135,8 @@ void setup() {
   while (!HX711.isSetupComplete()) {
     HX711.read();
   }
+  Serial << "Initial Zero Long: " << HX711.getInitialZero() << endl;
+  Serial << "Initial Zero Weight: " << HX711.getInitialZero() / 712.0 << endl;
 
   // Initialise RFID module, start powered off
   Serial.println("Powering down RFID module");
@@ -216,10 +218,19 @@ void loop() {
 
   // RFID module turned off in update function and weight detect flag is still true
   if (!RFID.getPowerStatus() && HX711.getWeightDetected()) {
+    //Throughout sensing time get the highest weight detected
+    SnakeData[SnakeIndex].weight = HX711.getHighestDetectedWeight();
+
     // Reset weight detection
     HX711.resetWeightDetected();
 
-    Serial.println("Weight detection reset");
+    Serial.println(F("Weight detection reset"));
+
+    if (SnakeData[SnakeIndex].rfidTagIndex != 0) {
+      printRecordedData();
+    }
+
+    // TODO: If no tag read dont increase snake index or save to SD card.
 
     // Increase snake index for next snake, all RFID tags should have been read
     SnakeIndex++;
@@ -249,6 +260,18 @@ void loop() {
 
 
 /* FUNCTIONS */
+void printRecordedData() {
+  Serial << SnakeData[SnakeIndex].epochTime << F(" or ");
+  printDateTime(SnakeData[SnakeIndex].epochTime);
+  Serial << ", Snake: " << SnakeData[SnakeIndex].rfidTag[0] << F(". ");
+  Serial << "Skinks: ";
+  for (int i = 1; i < SnakeData[SnakeIndex].rfidTagIndex; i++) {
+    Serial << SnakeData[SnakeIndex].rfidTag[i] << F(", ");
+  }
+  Serial << SnakeData[SnakeIndex].temperature << F("C, ") << SnakeData[SnakeIndex].humidity << F("%, ");
+  Serial << SnakeData[SnakeIndex].weight << F(" vs ") << HX711.getCurrentWeight() << endl;
+}
+
 void recordSnakeData() {
   // Assign epoch time
   SnakeData[SnakeIndex].epochTime = RTC.get();
@@ -264,12 +287,25 @@ void recordSnakeData() {
   SnakeData[SnakeIndex].weight = HX711.getHighestDetectedWeight();
   // Reset highest detected weight
   HX711.resetHighestDetectedWeight();
-
-  // DEBUG
-  printSnakeData();
 }
 
 void recordSkinkTags() {
+  String rfidTagToRecord = RFID.getMessage();
+
+  Serial << F("Recording skink tag") << endl;
+
+  // Check that existing tags are not saved more than once
+  for (int index = 0; index < SnakeData[SnakeIndex].rfidTagIndex; index++) {
+    // If a recorded tag equals the tag to save
+    if (SnakeData[SnakeIndex].rfidTag[index].equals(rfidTagToRecord)) {
+      // Exit function without saving
+      Serial << "Same tag read: " << RFID.getMessage() << endl;
+      return;
+    }
+  }
+
+  Serial << "Index: " << SnakeData[SnakeIndex].rfidTagIndex << endl;
+
   if (SnakeData[SnakeIndex].rfidTagIndex < MAX_RFID_TAGS) {
     // Add tag to list of tags in the snake
     SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex++] = RFID.getMessage();
@@ -280,14 +316,9 @@ void recordSkinkTags() {
   }
 }
 
-void printSnakeData() {
-  Serial << SnakeData[SnakeIndex].epochTime << F(" or ");
-  printDateTime(SnakeData[SnakeIndex].epochTime);
-  Serial << F(", ") << SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex-1] << F(", ");
-  Serial << SnakeData[SnakeIndex].temperature << F(", ") << SnakeData[SnakeIndex].humidity << F(", ");
-  Serial << SnakeData[SnakeIndex].weight << F(" vs ") << HX711.getCurrentWeight() << endl;
-}
-
+/**
+ * Function to print the day month year hour:minute:second of time_t input.
+ */
 void printDateTime(time_t t) {
   Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
   Serial << monthShortStr(month(t));

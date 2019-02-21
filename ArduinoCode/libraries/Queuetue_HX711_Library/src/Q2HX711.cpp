@@ -1,4 +1,5 @@
 #include "Q2HX711.h"
+#include <Streaming.h>
 
 /**
  * Constructor
@@ -42,23 +43,26 @@ void Q2HX711::update() {
       weightDetected = true;
 
       // Increase polling interval if weight detected (up to 10Hz or 80Hz)
-      millisInterval = 100;   // 0.1s
+      millisInterval = FAST_WEIGHT_POLLING;   // 0.1s
 
-      Serial.print("Weight change detected: ");
-      Serial.println(weightDifference);
+      Serial << "Weight change detected: " << weightDifference << " or " << normaliseLongToWeight(weightDifference) << endl;
     }
     else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
       // Weight is decreasing.. TODO?
-      Serial.println("Weight decreasing");
+      //Serial.println("Weight decreasing");
     }
     
     // Decrease polling interval if no weight detected
-    if (!weightDetected) {
-      millisInterval = 1000;  // 1s
+    if (!weightDetected && millisInterval != INITIAL_WEIGHT_POLLING) {
+      millisInterval = INITIAL_WEIGHT_POLLING;  // 1s
     }
 
     // Set new highest detected weight and new lowest from array
     if (weightDetected && highestDetectedWeight < currentWeight) {
+      Serial << "Weight: " << highestDetectedWeight << " < " << currentWeight << " : ";
+      Serial << (highestDetectedWeight < currentWeight ? "true" : "false") << " or ";
+      Serial << normaliseLongToWeight(currentWeight) << " replacing " << normaliseLongToWeight(highestDetectedWeight) << endl;
+
       highestDetectedWeight = currentWeight;
     }
 	} // End regular time update
@@ -157,6 +161,10 @@ double Q2HX711::getHighestDetectedWeight() {
 
 void Q2HX711::resetHighestDetectedWeight() {
   highestDetectedWeight = 0;
+}
+
+long Q2HX711::getInitialZero() {
+  return initialZeroPosition;
 }
 
 boolean Q2HX711::getWeightDetected() {

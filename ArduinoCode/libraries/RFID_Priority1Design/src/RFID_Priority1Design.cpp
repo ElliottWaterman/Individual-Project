@@ -46,25 +46,21 @@ void RFID_P1D::update() {
         if (currentMillis - powerOnMillis <= totalPowerOnMillis) {
             // Message has been read so keep module on for longer
             if (readMessage()) {
-                Serial.println("RFID tag read!");
+                Serial.println(F("RFID tag read!"));
 
                 // Only extend once the power on time
                 if (totalPowerOnMillis == INITIAL_POWER_ON_MILLIS) {
                     // Increase power on millis by elapsed time
                     totalPowerOnMillis += (currentMillis - powerOnMillis);
 
-                    Serial.print("Extended power on time: ");
-                    Serial.print(INITIAL_POWER_ON_MILLIS / 1000);
-                    Serial.print(" to ");
+                    Serial.print(F("Extended power on time: "));
                     Serial.print(totalPowerOnMillis / 1000);
-                    Serial.println(" seconds.");
+                    Serial.println(F(" seconds."));
                 }
             }
         }
         // Module has elapsed power on time so turn OFF
         else if (currentMillis - powerOnMillis > totalPowerOnMillis) {
-            Serial.println("RFID Powering down");
-
             // Turn off module
             powerDown();
 
