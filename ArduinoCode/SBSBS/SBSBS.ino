@@ -1,7 +1,7 @@
 /**
    Author: Elliott Waterman
    Date Created: 11/01/2019
-   Date Last Modified: 20/02/2019
+   Date Last Modified: 22/02/2019
    Description: Complete program to run the arduino in the
    Smart Boa Snake Basking Station.
 */
@@ -11,12 +11,14 @@
 #include <Arduino.h>        //Standard library
 #include <avr/sleep.h>      //AVR library contains methods and sleep modes to control the sleep of an Arduino
 #include <Streaming.h>      //Used to make print statements easier to write
+#include <SPI.h>            //Used for SD card communication
 
 #include <SoftwareSerial.h> //Library to communicate with RFID reader (TODO: create class?)
 #include <DS3232RTC.h>      //RTC library used to control the RTC module
 #include <SimpleDHT.h>      //DHT22 library used to read from a DHT22 module
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 #include <RFID_Priority1Design.h> //RFID_P1D library used to read animal FBD-X tags
+#include <SD.h>             //SD library used to read and write to a SD card module
 
 
 /* DEFINES */
@@ -28,7 +30,8 @@
 #define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
 #define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
 #define PIN_RFID_TX       9   //Transmitting pin on Arduino (use rx wire on board)
-#define PIN_SD            10  //Digital pin connected to the SD module
+#define PIN_SD            10  //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
+//#define PIN_SPI         11  // 12, 13 pins work
 
 #define PIN_HX711_DATA    A2  //Weight sensor data pin
 #define PIN_HX711_CLOCK   A3  //Weight sensor clock pin
@@ -40,17 +43,6 @@
 /* CONSTANTS */
 // RTC
 const byte RTC_ALARM_TIME_INTERVAL = 5;   //Sets the wakeup intervall in minutes
-const int RTC_TIME_READ_INTERVAL = 1500;
-
-// RFID
-const byte RFID_TAG_BUFFER_SIZE = 48;     // Maximum RFID tag size is 33
-const byte INITIAL_RFID_POWER_ON_SECONDS = 20;
-
-// Weight sensor
-const int HX711_TIME_READ_INTERVAL = 1;       //Interval in seconds to read sensor
-
-// Temperature
-const int DHT22_TIME_READ_INTERVAL = 2000;
 
 // Snake structure recordings
 /*
@@ -58,7 +50,7 @@ const int DHT22_TIME_READ_INTERVAL = 2000;
  * 30 minutes basking time means 24 snakes in one day.
  * Double just in case means ~50 snakes, or 2 days worth of recordings.
  */
-const byte MAX_SNAKE_RECORDINGS = 2;
+//const byte MAX_SNAKE_RECORDINGS = 2;
 /*
  * The number of RFID tags read in one weight detection.
  * Includes the SNAKE tag and any SKINK tags.
@@ -76,7 +68,6 @@ RFID_P1D RFID(&RFID_Serial, PIN_RFID_POWER);          //Controls the RFID module
 SimpleDHT22 DHT22(PIN_DHT22);                         //Controls the DHT22 module
 
 Q2HX711 HX711(PIN_HX711_DATA, PIN_HX711_CLOCK);       //Controls the HX711 module
-//File storageFile;               //Controls writing to the SD card
 
 
 /* VARIABLES */
@@ -85,37 +76,17 @@ float DHT22Temperature;
 float DHT22Humidity;
 long DHT22TimeRead;
 
-// Weight sensor
-time_t HX711TimeRead;
-double HX711Weight = 0;
-double HX711WeightPrevious = 0;
-
-// RTC
-long RTCTimeRead;
-
-// RFID variables
-unsigned long RFIDPowerOnTime = 0;
-byte RFIDPowerOnSeconds = INITIAL_RFID_POWER_ON_SECONDS;  // Seconds powered on not over 255 (4 mins 15 secs)
-static char RFIDTag[RFID_TAG_BUFFER_SIZE];
-static byte RFIDTagIndex;
-String RFIDTagString;
-
-// DEBUG
-bool DEBUGOnce = true;
-unsigned long DEBUGStartTime;
-
 
 /* STRUCTURES */
 struct snakeData {
   time_t epochTime;
-  String rfidTag[MAX_RFID_TAGS];
+  String rfidTag[MAX_RFID_TAGS];    // If less space could use char[34][MAX_RFID_TAGS]
   byte rfidTagIndex = 0;
   float temperature;
   float humidity;
   float weight; // highest and lowest?
 };
-struct snakeData SnakeData[MAX_SNAKE_RECORDINGS];
-byte SnakeIndex = 0;
+struct snakeData SnakeData;
 
 
 
@@ -123,27 +94,27 @@ byte SnakeIndex = 0;
 void setup() {
   // Serial communications
   Serial.begin(9600);
-  Serial.println("Setup Begin");
+  Serial.println(F("Setup Begin"));
 
   // Start software serial communication with SIM and RFID modules
   //SIM900.begin(9600);
 
   // Initialise weight sensor
-  Serial.println("Initialising weight sensor");
+  Serial.println(F("Initialising weight sensor"));
   HX711.startSensorSetup();
   // Read from sensor until averaging array fills up
   while (!HX711.isSetupComplete()) {
     HX711.read();
   }
-  Serial << "Initial Zero Long: " << HX711.getInitialZero() << endl;
-  Serial << "Initial Zero Weight: " << HX711.getInitialZero() / 712.0 << endl;
+  Serial << F("Initial Zero Long: ") << HX711.getInitialZero() << endl;
+  Serial << F("Initial Zero Weight: ") << HX711.getInitialZero() / 712.0 << endl;
 
   // Initialise RFID module, start powered off
   Serial.println("Powering down RFID module");
   RFID.powerDown();
 
   // Initialise RTC alarms to known values, clear the alarm flags, clear the alarm interrupt flags
-  Serial.println("Initialising RTC alarms");
+  Serial.println(F("Initialising RTC alarms"));
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
   RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
   RTC.alarm(ALARM_1);
@@ -156,23 +127,21 @@ void setup() {
   setSyncProvider(RTC.get); // Sync to a function that gets the time from the RTC
   //setSyncInterval(CONST); // Set the number of seconds between re-syncs (5 minutes default)
   if (timeStatus() == timeSet)
-    Serial.println("RTC has set the system time");
+    Serial.println(F("RTC has set the system time"));
   else if (timeStatus() == timeNeedsSync)
-    Serial.println("Unable to sync with the RTC");
+    Serial.println(F("Unable to sync with the RTC"));
   else if (timeStatus() == timeNotSet)
-    Serial.println("RTC has set the system time");
+    Serial.println(F("RTC has set the system time"));
   else
-    Serial.println("Unable to sync with the RTC");
+    Serial.println(F("Unable to sync with the RTC"));
 
   // DEBUG
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
   //digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
 
-  DEBUGStartTime = millis();
-
-  Serial.println("Setup Complete!");
-  Serial.println("To start: Trigger weight sensor, then scan RFID tags");
+  Serial.println(F("Setup Complete!"));
+  Serial.println(F("To start: Trigger weight sensor, then scan RFID tags"));
 }
 
 
@@ -218,29 +187,19 @@ void loop() {
 
   // RFID module turned off in update function and weight detect flag is still true
   if (!RFID.getPowerStatus() && HX711.getWeightDetected()) {
-    //Throughout sensing time get the highest weight detected
-    SnakeData[SnakeIndex].weight = HX711.getHighestDetectedWeight();
+    // If a snake RFID has been read the index will be at least 1
+    if (SnakeData.rfidTagIndex != 0) {
+      // Throughout sensing time get the highest weight detected
+      SnakeData.weight = HX711.getHighestDetectedWeight();
+
+      printRecordedData();
+
+      // Save snake recording to an SD card file
+      saveSnakeDataToSDCard();
+    }
 
     // Reset weight detection
     HX711.resetWeightDetected();
-
-    Serial.println(F("Weight detection reset"));
-
-    if (SnakeData[SnakeIndex].rfidTagIndex != 0) {
-      printRecordedData();
-    }
-
-    // TODO: If no tag read dont increase snake index or save to SD card.
-
-    // Increase snake index for next snake, all RFID tags should have been read
-    SnakeIndex++;
-    // If snake data index is over max records
-    if (SnakeIndex >= MAX_SNAKE_RECORDINGS) {
-      // Reset snake data indexing
-      SnakeIndex = 0;
-    }
-
-    Serial.print("Snakes: "); Serial.println(SnakeIndex);
   }
 
   // Get any incoming SIM900 data
@@ -261,58 +220,64 @@ void loop() {
 
 /* FUNCTIONS */
 void printRecordedData() {
-  Serial << SnakeData[SnakeIndex].epochTime << F(" or ");
-  printDateTime(SnakeData[SnakeIndex].epochTime);
-  Serial << ", Snake: " << SnakeData[SnakeIndex].rfidTag[0] << F(". ");
+  Serial << SnakeData.epochTime << F(" or ");
+  printDateTime(SnakeData.epochTime);
+  Serial << ", Snake: " << SnakeData.rfidTag[0] << F(". ");
   Serial << "Skinks: ";
-  for (int i = 1; i < SnakeData[SnakeIndex].rfidTagIndex; i++) {
-    Serial << SnakeData[SnakeIndex].rfidTag[i] << F(", ");
+  for (int i = 1; i < SnakeData.rfidTagIndex; i++) {
+    Serial << SnakeData.rfidTag[i] << F(", ");
   }
-  Serial << SnakeData[SnakeIndex].temperature << F("C, ") << SnakeData[SnakeIndex].humidity << F("%, ");
-  Serial << SnakeData[SnakeIndex].weight << F(" vs ") << HX711.getCurrentWeight() << endl;
+  Serial << SnakeData.temperature << F("C, ") << SnakeData.humidity << F("%, ");
+  Serial << SnakeData.weight << F(" vs ") << HX711.getCurrentWeight() << endl;
 }
 
+/**
+ * Function to record all sensor values to the snake data struct.
+ */
 void recordSnakeData() {
   // Assign epoch time
-  SnakeData[SnakeIndex].epochTime = RTC.get();
+  SnakeData.epochTime = RTC.get();
   // Assign RFID tag and increase index
-  SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex++] = RFID.getMessage();
+  SnakeData.rfidTag[SnakeData.rfidTagIndex++] = RFID.getMessage();
 
   // Collect and assign temperature data
   dht22ReadFromSensor();
-  SnakeData[SnakeIndex].temperature = DHT22Temperature;
-  SnakeData[SnakeIndex].humidity = DHT22Humidity;
+  SnakeData.temperature = DHT22Temperature;
+  SnakeData.humidity = DHT22Humidity;
 
   // Get and assign weight data
-  SnakeData[SnakeIndex].weight = HX711.getHighestDetectedWeight();
+  SnakeData.weight = HX711.getHighestDetectedWeight();
   // Reset highest detected weight
   HX711.resetHighestDetectedWeight();
 }
 
+/**
+ * Function to record further RFID tags read to the snake data struct.
+ */
 void recordSkinkTags() {
   String rfidTagToRecord = RFID.getMessage();
 
   Serial << F("Recording skink tag") << endl;
 
   // Check that existing tags are not saved more than once
-  for (int index = 0; index < SnakeData[SnakeIndex].rfidTagIndex; index++) {
+  for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
     // If a recorded tag equals the tag to save
-    if (SnakeData[SnakeIndex].rfidTag[index].equals(rfidTagToRecord)) {
+    if (SnakeData.rfidTag[index].equals(rfidTagToRecord)) {
       // Exit function without saving
-      Serial << "Same tag read: " << RFID.getMessage() << endl;
+      Serial << F("Same tag read: ") << RFID.getMessage() << endl;
       return;
     }
   }
 
-  Serial << "Index: " << SnakeData[SnakeIndex].rfidTagIndex << endl;
+  Serial << F("Index: ") << SnakeData.rfidTagIndex << endl;
 
-  if (SnakeData[SnakeIndex].rfidTagIndex < MAX_RFID_TAGS) {
+  if (SnakeData.rfidTagIndex < MAX_RFID_TAGS) {
     // Add tag to list of tags in the snake
-    SnakeData[SnakeIndex].rfidTag[SnakeData[SnakeIndex].rfidTagIndex++] = RFID.getMessage();
+    SnakeData.rfidTag[SnakeData.rfidTagIndex++] = RFID.getMessage();
   }
   else {
     // Too many skinks been eaten, over MAX_RFID_TAGS (5)
-    Serial.println("Too many snake/skink tags read!");
+    Serial.println(F("Too many snake/skink tags read!"));
   }
 }
 
@@ -326,13 +291,6 @@ void printDateTime(time_t t) {
   Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
   Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
   Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t));
-}
-
-template <class T> void DEBUGSecondDisplay(const T toDisplay) {
-  if (millis() - DEBUGStartTime > 1000) {
-    Serial.println(toDisplay);
-    DEBUGStartTime = millis();
-  }
 }
 
 /**
@@ -371,101 +329,167 @@ void dht22ReadFromSensor() {
   int function_success = DHT22.read2(&DHT22Temperature, &DHT22Humidity, NULL);
   //Check return value is NOT equal to constant for success
   if (function_success != SimpleDHTErrSuccess) {
-    Serial.print("Read DHT22 failed, err: ");
+    Serial.print(F("Read DHT22 failed, err: "));
     Serial.println(function_success, HEX);
   }
   //TODO: Could return success value?
 }
 
 /**
- * Function TODO
+ * Function to create the file name for today, in format (YYYYMMDD.csv).
  */
-void setRTCMinutesAlarm() {
-    // Set alarm on RTC for RTC_ALARM_TIME_INTERVAL + t
-  time_t t;
-  t = RTC.get();    //Gets the current time of the RTC
-  RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);  // Setting alarm 1 to go off 5 minutes from now
-  //Clear the alarm flag
-  RTC.alarm(ALARM_1);
-  //Configure the INT/SQW pin for "interrupt" operation (disable square wave output)
-  RTC.squareWave(SQWAVE_NONE);
-  //Enable interrupt output for Alarm 1
-  RTC.alarmInterrupt(ALARM_1, true);
+String createFileName() {
+  // Get current date time
+  time_t dateTime = RTC.get();
+
+  // 8.3 format; 8 characters, 1 dot, 3 extension characters, null terminator
+  char filename[13];
+
+  strcpy(filename, year(dateTime));             // Year
+  strcat(filename, ((month(dateTime) < 10) ? "0" : ""));  // Add leading zero if below 10
+  strcat(filename, month(dateTime));            // Month
+  strcat(filename, ((day(dateTime) < 10) ? "0" : ""));    // Add leading zero if below 10
+  strcat(filename, day(dateTime));              // Day
+  strcat(filename, ".csv");                               // Add extension
+
+  Serial.println(filename);
+
+  return String(filename);
+}
+
+/**
+ * Function to create a new SD card file in the format (YYYYMMDD.csv) and 
+ * used when saving snake data which was recorded today.
+ */
+void createSDFileForToday() {
+  // Get current date time
+  time_t dateTime = RTC.get();
+
+  String filename = createFileName();
+
+  // Create file on SD card
+  File storageFile = SD.open(filename, FILE_WRITE);
+  storageFile.close();
+
+  // TODO: or
+
+  // Create file on SD card
+  SD.mkdir(filename);
+}
+
+/**
+ * Function to open the SD card file for today (YYYYMMDD.csv) and write the
+ * contents of the snake data struct to the file.
+ */
+void saveSnakeDataToSDCard() {
+  // Get file name for today
+  String filename = createFileName();
+
+  // Creates the file object for writing
+  File storageFile = SD.open(filename, FILE_WRITE);
+
+  // if the file opened okay, write to it:
+  if (storageFile) {
+    Serial.print("Writing to " + filename);
+
+    char COMMA = ',';
+
+    // Print epoch time to file
+    storageFile.print(String(SnakeData.epochTime) + COMMA);
+
+    // Print each RFID tag read to file
+    for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
+      storageFile.print(SnakeData.rfidTag[index] + COMMA);
+    }
+
+    // Print line of temperature, humidity and weight
+    storageFile.println(String(SnakeData.temperature) + COMMA + String(SnakeData.humidity) + COMMA + String(SnakeData.weight));
+
+    // Close the file
+    storageFile.close();
+
+    Serial.println(F("Saved snake data to file."));
+  }
+  else {
+    // If the file didn't open, print an error
+    Serial.println("Error opening " + filename);
+  }
+
+  // DEBUG TODO remove later
+  // Opening the file for reading and writing content to serial monitor
+  storageFile = SD.open(filename);
+  if (storageFile) {
+    Serial.println(filename);
+
+    // Read from the file until there's nothing else in it
+    while (storageFile.available()) {
+      Serial.write(storageFile.read());
+    }
+    // Close the file
+    storageFile.close();
+  }
+  else {
+    // If the file didn't open, print an error
+    Serial.println("Error opening" + filename);
+  }
 }
 
 /**
  * Function TODO
  */
-void Going_To_Sleep() {
-  sleep_enable();                       //Enabling sleep mode
-  //Pin to detect change, method to call, the change to detect
-  attachInterrupt(0, wakeUp, LOW);      //attaching an interrupt to pin d2
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);  //Setting the sleep mode, in our case full sleep
-  digitalWrite(LED_BUILTIN, LOW);       //turning LED off
-
-  time_t t;                             // creates temp time variable
-  t = RTC.get();                        //gets current time from rtc
-  Serial.println("Sleep  Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
-  delay(1000);                          //wait a second to allow the led to be turned off before going to sleep
-  sleep_cpu();                          //activating sleep mode
-
-  Serial.println("just woke up!");      //next line of code executed after the interrupt
-  digitalWrite(LED_BUILTIN, HIGH);      //turning LED on
-  t = RTC.get();
-  Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
-  //temp_Humi();                          //function that reads the temp and the humidity
-  //Set New Alarm
-  RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);
-
-  // clear the alarm flag
-  RTC.alarm(ALARM_1);
-}
+// void setRTCMinutesAlarm() {
+//     // Set alarm on RTC for RTC_ALARM_TIME_INTERVAL + t
+//   time_t t;
+//   t = RTC.get();    //Gets the current time of the RTC
+//   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);  // Setting alarm 1 to go off 5 minutes from now
+//   //Clear the alarm flag
+//   RTC.alarm(ALARM_1);
+//   //Configure the INT/SQW pin for "interrupt" operation (disable square wave output)
+//   RTC.squareWave(SQWAVE_NONE);
+//   //Enable interrupt output for Alarm 1
+//   RTC.alarmInterrupt(ALARM_1, true);
+// }
 
 /**
  * Function TODO
  */
-void wakeUp() {
-  Serial.println("Interrrupt Fired");//Print message to serial monitor
-  sleep_disable();//Disable sleep mode
-  detachInterrupt(0); //Removes the interrupt from pin 2;
-}
+// void Going_To_Sleep() {
+//   sleep_enable();                       //Enabling sleep mode
+//   //Pin to detect change, method to call, the change to detect
+//   attachInterrupt(0, wakeUp, LOW);      //attaching an interrupt to pin d2
+//   set_sleep_mode(SLEEP_MODE_PWR_DOWN);  //Setting the sleep mode, in our case full sleep
+//   digitalWrite(LED_BUILTIN, LOW);       //turning LED off
+
+//   time_t t;                             // creates temp time variable
+//   t = RTC.get();                        //gets current time from rtc
+//   Serial.println("Sleep  Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
+//   delay(1000);                          //wait a second to allow the led to be turned off before going to sleep
+//   sleep_cpu();                          //activating sleep mode
+
+//   Serial.println("just woke up!");      //next line of code executed after the interrupt
+//   digitalWrite(LED_BUILTIN, HIGH);      //turning LED on
+//   t = RTC.get();
+//   Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
+//   //temp_Humi();                          //function that reads the temp and the humidity
+//   //Set New Alarm
+//   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);
+
+//   // clear the alarm flag
+//   RTC.alarm(ALARM_1);
+// }
 
 /**
-   the writeData function gets the humidity (h), temperature in celsius (t) and farenheit (f) as input
-   parameters. It uses the RTC to create a filename using the current date, and writes the temperature
-   and humidity with a date stamp to this file
-*/
-//void writeData(float h, float t, float f) {
-//  time_t p; //create time object for time and date stamp
-//  p = RTC.get(); //gets the time from RTC
-//  String file_Name = String(day(p)) + monthShortStr(month(p)) + String(year(p)) + ".txt"; //creates the file name we are writing to.
-//  storageFile = SD.open(file_Name, FILE_WRITE);// creates the file object for writing
-//
-//  // if the file opened okay, write to it:
-//  if (storageFile) {
-//    Serial.print("Writing to " + file_Name);
-//    //appends a line to the file with time stamp and humidity and temperature data
-//    storageFile.println(String(hour(p)) + ":" + String(minute(p)) + " Hum: " + String(h) + "% C: " + String(t) + " F: " + String(f));
-//    // close the file:
-//    storageFile.close();
-//    Serial.println("done.");
-//  } else {
-//    // if the file didn't open, print an error:
-//    Serial.println("error opening " + file_Name);
-//  }
-//  //opening file for reading and writing content to serial monitor
-//  storageFile = SD.open(file_Name);
-//  if (storageFile) {
-//    Serial.println(file_Name);
-//
-//    // read from the file until there's nothing else in it:
-//    while (storageFile.available()) {
-//      Serial.write(storageFile.read());
-//    }
-//    // close the file:
-//    storageFile.close();
-//  } else {
-//    // if the file didn't open, print an error:
-//    Serial.println("error opening" + file_Name);
-//  }
-//}
+ * Function TODO
+ */
+// void wakeUp() {
+//   Serial.println("Interrrupt Fired");//Print message to serial monitor
+//   sleep_disable();//Disable sleep mode
+//   detachInterrupt(0); //Removes the interrupt from pin 2;
+// }
+
+// template <class T> void DEBUGSecondDisplay(const T toDisplay) {
+//   if (millis() - DEBUGStartTime > 1000) {
+//     Serial.println(toDisplay);
+//     DEBUGStartTime = millis();
+//   }
+// }
