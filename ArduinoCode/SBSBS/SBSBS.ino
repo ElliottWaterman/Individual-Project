@@ -30,9 +30,9 @@
 #define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
 #define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
 #define PIN_RFID_TX       9   //Transmitting pin on Arduino (use rx wire on board)
-#define PIN_SD            10  //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
-//#define PIN_SPI         11  // 12, 13 pins work
 
+#define PIN_SD            A0  //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
+//#define PIN_SPI         11  // 12, 13 pins work
 #define PIN_HX711_DATA    A2  //Weight sensor data pin
 #define PIN_HX711_CLOCK   A3  //Weight sensor clock pin
 #define PIN_RTC_SDA       A4  //Connect RTC data to Arduino pin A4
@@ -74,7 +74,6 @@ Q2HX711 HX711(PIN_HX711_DATA, PIN_HX711_CLOCK);       //Controls the HX711 modul
 // Temperature
 float DHT22Temperature;
 float DHT22Humidity;
-long DHT22TimeRead;
 
 
 /* STRUCTURES */
@@ -241,7 +240,7 @@ void recordSnakeData() {
   SnakeData.rfidTag[SnakeData.rfidTagIndex++] = RFID.getMessage();
 
   // Collect and assign temperature data
-  dht22ReadFromSensor();
+  readDHT22();
   SnakeData.temperature = DHT22Temperature;
   SnakeData.humidity = DHT22Humidity;
 
@@ -322,17 +321,19 @@ void readSIM900() {
 }
 
 /**
-   Function to read the temperature and humidity of the DHT22 sensor.
-*/
-void dht22ReadFromSensor() {
+ * Function to read the temperature and humidity of the DHT22 sensor.
+ * If read more than once per 2 seconds it will print an error.
+ * Temperature and Humidity values will be same as last read if error.
+ */
+void readDHT22() {
   //Read from the DHT22 sensor and assign values into variables, NULL is meant for raw data array.
-  int function_success = DHT22.read2(&DHT22Temperature, &DHT22Humidity, NULL);
+  int functionSuccess = DHT22.read2(&DHT22Temperature, &DHT22Humidity, NULL);
+
   //Check return value is NOT equal to constant for success
-  if (function_success != SimpleDHTErrSuccess) {
+  if (functionSuccess != SimpleDHTErrSuccess) {
     Serial.print(F("Read DHT22 failed, err: "));
-    Serial.println(function_success, HEX);
+    Serial.println(functionSuccess, HEX);
   }
-  //TODO: Could return success value?
 }
 
 /**
@@ -345,7 +346,9 @@ String createFileName() {
   // 8.3 format; 8 characters, 1 dot, 3 extension characters, null terminator
   char filename[13];
 
-  strcpy(filename, year(dateTime));             // Year
+  sprintf(filename, "%05d", num);
+
+  strcpy(filename, String(year(dateTime)));             // Year
   strcat(filename, ((month(dateTime) < 10) ? "0" : ""));  // Add leading zero if below 10
   strcat(filename, month(dateTime));            // Month
   strcat(filename, ((day(dateTime) < 10) ? "0" : ""));    // Add leading zero if below 10
@@ -370,40 +373,54 @@ void createSDFileForToday() {
   // Create file on SD card
   File storageFile = SD.open(filename, FILE_WRITE);
   storageFile.close();
-
-  // TODO: or
-
-  // Create file on SD card
-  SD.mkdir(filename);
 }
 
 /**
  * Function to open the SD card file for today (YYYYMMDD.csv) and write the
  * contents of the snake data struct to the file.
+ * Order saved: epoch, temp, hum, weight, rfid tags
  */
 void saveSnakeDataToSDCard() {
   // Get file name for today
   String filename = createFileName();
+
+  Serial.print("File name: ");
+  Serial.println(filename);
 
   // Creates the file object for writing
   File storageFile = SD.open(filename, FILE_WRITE);
 
   // if the file opened okay, write to it:
   if (storageFile) {
-    Serial.print("Writing to " + filename);
+    Serial.println("Writing to " + filename);
 
     char COMMA = ',';
 
-    // Print epoch time to file
-    storageFile.print(String(SnakeData.epochTime) + COMMA);
+    // Print epoch time and temperature to file
+    storageFile.print(String(SnakeData.epochTime) + COMMA + String(SnakeData.temperature) + COMMA);
+
+    // Print humidity and weight to file
+    storageFile.print(String(SnakeData.humidity) + COMMA + String(SnakeData.weight) + COMMA);
 
     // Print each RFID tag read to file
     for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
-      storageFile.print(SnakeData.rfidTag[index] + COMMA);
+      storageFile.print(SnakeData.rfidTag[index]);
+
+      // Print comma until last tag printed
+      if (index < (SnakeData.rfidTagIndex - 1)) {
+        storageFile.print(COMMA);
+      }
     }
 
-    // Print line of temperature, humidity and weight
-    storageFile.println(String(SnakeData.temperature) + COMMA + String(SnakeData.humidity) + COMMA + String(SnakeData.weight));
+    // OR
+    // storageFile.print(String(SnakeData.epochTime));
+    // storageFile.print(COMMA);
+    // storageFile.print(String(SnakeData.temperature));
+    // storageFile.print(COMMA);
+    // storageFile.print(String(SnakeData.humidity));
+    // storageFile.print(COMMA);
+    // storageFile.print(String(SnakeData.weight));
+    // storageFile.print(COMMA);
 
     // Close the file
     storageFile.close();
