@@ -141,6 +141,12 @@ void setup() {
 
   Serial.println(F("Setup Complete!"));
   Serial.println(F("To start: Trigger weight sensor, then scan RFID tags"));
+
+  char *filename;
+  filename = createFileName();
+  Serial.print("Returned: ");
+  Serial.println(filename);
+  free(filename);
 }
 
 
@@ -339,25 +345,27 @@ void readDHT22() {
 /**
  * Function to create the file name for today, in format (YYYYMMDD.csv).
  */
-String createFileName() {
+char* createFileName() {
   // Get current date time
   time_t dateTime = RTC.get();
 
   // 8.3 format; 8 characters, 1 dot, 3 extension characters, null terminator
+  //char *filename = malloc(sizeof(char) * 13);
   char filename[13];
 
-  sprintf(filename, "%05d", num);
-
-  strcpy(filename, String(year(dateTime)));             // Year
-  strcat(filename, ((month(dateTime) < 10) ? "0" : ""));  // Add leading zero if below 10
-  strcat(filename, month(dateTime));            // Month
-  strcat(filename, ((day(dateTime) < 10) ? "0" : ""));    // Add leading zero if below 10
-  strcat(filename, day(dateTime));              // Day
-  strcat(filename, ".csv");                               // Add extension
-
+  // Generate C string (char array) using date time and formaters
+  snprintf(filename, sizeof(filename), "%d%s%d%s%d.csv", year(dateTime), ((month(dateTime) < 10) ? "0" : ""), month(dateTime), ((day(dateTime) < 10) ? "0" : ""), day(dateTime));
+  Serial.print("Func: ");
   Serial.println(filename);
 
-  return String(filename);
+  return filename;
+
+  // strcpy(filename, year(dateTime));             // Year
+  // strcat(filename, ((month(dateTime) < 10) ? "0" : ""));  // Add leading zero if below 10
+  // strcat(filename, month(dateTime));            // Month
+  // strcat(filename, ((day(dateTime) < 10) ? "0" : ""));    // Add leading zero if below 10
+  // strcat(filename, day(dateTime));              // Day
+  // strcat(filename, ".csv");                               // Add extension
 }
 
 /**
@@ -365,10 +373,9 @@ String createFileName() {
  * used when saving snake data which was recorded today.
  */
 void createSDFileForToday() {
-  // Get current date time
-  time_t dateTime = RTC.get();
-
   String filename = createFileName();
+
+  Serial.println(filename);
 
   // Create file on SD card
   File storageFile = SD.open(filename, FILE_WRITE);
