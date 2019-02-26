@@ -134,6 +134,12 @@ void setup() {
   else
     Serial.println(F("Unable to sync with the RTC"));
 
+  Serial.println(F("Connecting to SD Card Reader"));
+  if (!SD.begin(PIN_SD)) {
+    Serial.println("Initialization failed!");
+    while (1);
+  }
+
   // DEBUG
   pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
@@ -141,12 +147,6 @@ void setup() {
 
   Serial.println(F("Setup Complete!"));
   Serial.println(F("To start: Trigger weight sensor, then scan RFID tags"));
-
-  char *filename;
-  filename = createFileName();
-  Serial.print("Returned: ");
-  Serial.println(filename);
-  free(filename);
 }
 
 
@@ -344,21 +344,22 @@ void readDHT22() {
 
 /**
  * Function to create the file name for today, in format (YYYYMMDD.csv).
+ * 
  */
-char* createFileName() {
+void createFileName(char* filename) {
   // Get current date time
   time_t dateTime = RTC.get();
 
   // 8.3 format; 8 characters, 1 dot, 3 extension characters, null terminator
-  //char *filename = malloc(sizeof(char) * 13);
-  char filename[13];
+  //char *filename = malloc(13);
+  //char filename[13];
 
   // Generate C string (char array) using date time and formaters
-  snprintf(filename, sizeof(filename), "%d%s%d%s%d.csv", year(dateTime), ((month(dateTime) < 10) ? "0" : ""), month(dateTime), ((day(dateTime) < 10) ? "0" : ""), day(dateTime));
+  snprintf(filename, 13, "%d%s%d%s%d.txt", year(dateTime), ((month(dateTime) < 10) ? "0" : ""), month(dateTime), ((day(dateTime) < 10) ? "0" : ""), day(dateTime));
   Serial.print("Func: ");
   Serial.println(filename);
 
-  return filename;
+  // return filename;
 
   // strcpy(filename, year(dateTime));             // Year
   // strcat(filename, ((month(dateTime) < 10) ? "0" : ""));  // Add leading zero if below 10
@@ -373,7 +374,8 @@ char* createFileName() {
  * used when saving snake data which was recorded today.
  */
 void createSDFileForToday() {
-  String filename = createFileName();
+  char filename[13];
+  createFileName(filename);
 
   Serial.println(filename);
 
@@ -389,9 +391,10 @@ void createSDFileForToday() {
  */
 void saveSnakeDataToSDCard() {
   // Get file name for today
-  String filename = createFileName();
+  char filename[13];
+  createFileName(filename);
 
-  Serial.print("File name: ");
+  Serial.print(F("File name: "));
   Serial.println(filename);
 
   // Creates the file object for writing
@@ -399,7 +402,8 @@ void saveSnakeDataToSDCard() {
 
   // if the file opened okay, write to it:
   if (storageFile) {
-    Serial.println("Writing to " + filename);
+    Serial.println(F("Writing to"));
+    Serial.println(filename);
 
     char COMMA = ',';
 
@@ -436,7 +440,8 @@ void saveSnakeDataToSDCard() {
   }
   else {
     // If the file didn't open, print an error
-    Serial.println("Error opening " + filename);
+    Serial.println(F("Error opening"));
+    Serial.println(filename);
   }
 
   // DEBUG TODO remove later
@@ -454,7 +459,8 @@ void saveSnakeDataToSDCard() {
   }
   else {
     // If the file didn't open, print an error
-    Serial.println("Error opening" + filename);
+    Serial.println(F("Error opening"));
+    Serial.println(filename);
   }
 }
 
