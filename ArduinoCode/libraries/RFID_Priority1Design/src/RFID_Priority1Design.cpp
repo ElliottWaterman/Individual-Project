@@ -53,9 +53,9 @@ void RFID_P1D::update() {
                     // Increase power on millis by elapsed time
                     totalPowerOnMillis += (currentMillis - powerOnMillis);
 
-                    Serial.print(F("Extended power on time: "));
-                    Serial.print(totalPowerOnMillis / 1000);
-                    Serial.println(F(" seconds."));
+                    // Serial.print(F("Extended power on time: "));
+                    // Serial.print(totalPowerOnMillis / 1000);
+                    // Serial.println(F(" seconds."));
                 }
             }
         }
@@ -80,7 +80,7 @@ boolean RFID_P1D::readMessage() {
     // Listen to serial port for RFID communication
     //RFID->listen();
     if (RFID->listen()) {
-        Serial.println("Cannot listen to RFID!");
+        Serial.println(F("Cannot listen to RFID!"));
     }
 
     while (RFID->available() && messageIndex < (MAX_RFID_MESSAGE_SIZE - 1)) {
@@ -144,7 +144,7 @@ void RFID_P1D::powerDown() {
 
         // DEBUG
         digitalWrite(LED_BUILTIN, LOW);  // DEBUG LED
-        Serial.println("RFID powering down");
+        Serial.println(F("RFID powering down"));
     }
 }
 
@@ -167,6 +167,6 @@ void RFID_P1D::powerUp() {
 
         // DEBUG
         digitalWrite(LED_BUILTIN, HIGH);  // DEBUG LED
-        Serial.println("RFID powering up");
+        Serial.println(F("RFID powering up"));
     }
 }

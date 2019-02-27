@@ -4,9 +4,9 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 
-#define MAX_RFID_MESSAGE_SIZE       36      // Maximum RFID tag size is 33, normal is 17
+const byte MAX_RFID_MESSAGE_SIZE = 34;  // Maximum RFID tag size is 33, normal is 17
 
-const unsigned long INITIAL_POWER_ON_MILLIS = 30000;
+const unsigned long INITIAL_POWER_ON_MILLIS = 30000;        // Number of milliseconds to stay powered on
 
 class RFID_P1D
 {

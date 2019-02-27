@@ -18,29 +18,44 @@
 #include <SimpleDHT.h>      //DHT22 library used to read from a DHT22 module
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 #include <RFID_Priority1Design.h> //RFID_P1D library used to read animal FBD-X tags
-#include <SD.h>             //SD library used to read and write to a SD card module
+#include <Fat16.h>          //SD library used to read and write to a FAT16 SD card module
 
 
 /* DEFINES */
 // These are integers but should be const byte X = 4;!
-#define PIN_WAKE_UP       2   //Interrupt pin (or #3) to wake up the Arduino
-#define PIN_DHT22         3   //Digital pin connected to the DHT22 module
-#define PIN_RFID_POWER    4   //Digital pin connected BJT/MOSFET switch to power module
-#define PIN_SIM900_RX     6   //Receiving pin for the SIM900 module
-#define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
-#define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
-#define PIN_RFID_TX       9   //Transmitting pin on Arduino (use rx wire on board)
+// #define PIN_WAKE_UP       2   //Interrupt pin (or #3) to wake up the Arduino
+// #define PIN_DHT22         3   //Digital pin connected to the DHT22 module
+// #define PIN_RFID_POWER    4   //Digital pin connected BJT/MOSFET switch to power module
+// #define PIN_SIM900_RX     6   //Receiving pin for the SIM900 module
+// #define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
+// #define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
+// #define PIN_RFID_TX       9   //Transmitting pin on Arduino (use rx wire on board)
 
-#define PIN_SD            A0  //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
-//#define PIN_SPI         11  // 12, 13 pins work
-#define PIN_HX711_DATA    A2  //Weight sensor data pin
-#define PIN_HX711_CLOCK   A3  //Weight sensor clock pin
-#define PIN_RTC_SDA       A4  //Connect RTC data to Arduino pin A4
-#define PIN_RTC_SCL       A5  //Connect RTC clock to Arduino pin A5
+// #define PIN_SD            A0  //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
+// //#define PIN_SPI         11  // 12, 13 pins work
+// #define PIN_HX711_DATA    A2  //Weight sensor data pin
+// #define PIN_HX711_CLOCK   A3  //Weight sensor clock pin
+// #define PIN_RTC_SDA       A4  //Connect RTC data to Arduino pin A4
+// #define PIN_RTC_SCL       A5  //Connect RTC clock to Arduino pin A5
 //#define EXAMPLE           1   //Comment
 
 
 /* CONSTANTS */
+const byte PIN_WAKE_UP =      2;  //Interrupt pin (or #3) to wake up the Arduino
+const byte PIN_DHT22 =        3;  //Digital pin connected to the DHT22 module
+const byte PIN_RFID_POWER =   4;  //Digital pin connected BJT/MOSFET switch to power module
+const byte PIN_SIM900_RX =    6;  //Receiving pin for the SIM900 module
+const byte PIN_SIM900_TX =    7;  //Transmitting pin for the SIM900 module
+const byte PIN_RFID_RX =      8;  //Receiving pin on Arduino (use tx wire on board)
+const byte PIN_RFID_TX =      9;  //Transmitting pin on Arduino (use rx wire on board)
+
+const byte PIN_SD_SS =        A0; //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
+//const byte PIN_SPI =          11  // 12, 13 pins work
+const byte PIN_HX711_DATA =   A2; //Weight sensor data pin
+const byte PIN_HX711_CLOCK =  A3; //Weight sensor clock pin
+const byte PIN_RTC_SDA =      A4; //Connect RTC data to Arduino pin A4
+const byte PIN_RTC_SCL =      A5; //Connect RTC clock to Arduino pin A5
+
 // RTC
 const byte RTC_ALARM_TIME_INTERVAL = 5;   //Sets the wakeup intervall in minutes
 
@@ -54,9 +69,9 @@ const byte RTC_ALARM_TIME_INTERVAL = 5;   //Sets the wakeup intervall in minutes
 /*
  * The number of RFID tags read in one weight detection.
  * Includes the SNAKE tag and any SKINK tags.
- * So 1 snake and up to 4 skinks that have been eaten.
+ * So 5 gives 1 snake and up to 4 skinks that have been eaten.
  */
-const byte MAX_RFID_TAGS = 5;
+const byte MAX_RFID_TAGS = 4;
 
 
 /* LIBRARIES INSTANTIATED */
@@ -74,6 +89,10 @@ Q2HX711 HX711(PIN_HX711_DATA, PIN_HX711_CLOCK);       //Controls the HX711 modul
 // Temperature
 float DHT22Temperature;
 float DHT22Humidity;
+
+// SD Card
+SdCard card;
+Fat16 storageFile;
 
 
 /* STRUCTURES */
@@ -93,27 +112,22 @@ struct snakeData SnakeData;
 void setup() {
   // Serial communications
   Serial.begin(9600);
-  Serial.println(F("Setup Begin"));
+  Serial.println(F("S B."));
 
   // Start software serial communication with SIM and RFID modules
   //SIM900.begin(9600);
 
   // Initialise weight sensor
-  Serial.println(F("Initialising weight sensor"));
   HX711.startSensorSetup();
   // Read from sensor until averaging array fills up
   while (!HX711.isSetupComplete()) {
     HX711.read();
   }
-  Serial << F("Initial Zero Long: ") << HX711.getInitialZero() << endl;
-  Serial << F("Initial Zero Weight: ") << HX711.getInitialZero() / 712.0 << endl;
 
   // Initialise RFID module, start powered off
-  Serial.println("Powering down RFID module");
   RFID.powerDown();
 
   // Initialise RTC alarms to known values, clear the alarm flags, clear the alarm interrupt flags
-  Serial.println(F("Initialising RTC alarms"));
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
   RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
   RTC.alarm(ALARM_1);
@@ -125,19 +139,22 @@ void setup() {
   // Initialise Arduino time from RTC
   setSyncProvider(RTC.get); // Sync to a function that gets the time from the RTC
   //setSyncInterval(CONST); // Set the number of seconds between re-syncs (5 minutes default)
-  if (timeStatus() == timeSet)
-    Serial.println(F("RTC has set the system time"));
-  else if (timeStatus() == timeNeedsSync)
-    Serial.println(F("Unable to sync with the RTC"));
-  else if (timeStatus() == timeNotSet)
-    Serial.println(F("RTC has set the system time"));
-  else
-    Serial.println(F("Unable to sync with the RTC"));
+  if (timeStatus() != timeSet) {
+    Serial.println(F("RTC failed!"));
+    while(1);
+  }
 
-  Serial.println(F("Connecting to SD Card Reader"));
-  if (!SD.begin(PIN_SD)) {
-    Serial.println("Initialization failed!");
-    while (1);
+  // Serial.println(F("Connecting to SD Card Reader"));
+  // Initialize the SD card
+  if (!card.begin(PIN_SD_SS)) {
+    Serial.println(F("Failed card.begin"));
+    while(1);
+  }
+  
+  // Initialize a FAT16 volume
+  if (!Fat16::init(&card)) {
+    Serial.println(F("Failed Fat16::init"));
+    while(1);
   }
 
   // DEBUG
@@ -145,8 +162,7 @@ void setup() {
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
   //digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
 
-  Serial.println(F("Setup Complete!"));
-  Serial.println(F("To start: Trigger weight sensor, then scan RFID tags"));
+  Serial.println(F("S C."));
 }
 
 
@@ -225,10 +241,10 @@ void loop() {
 
 /* FUNCTIONS */
 void printRecordedData() {
-  Serial << SnakeData.epochTime << F(" or ");
-  printDateTime(SnakeData.epochTime);
-  Serial << ", Snake: " << SnakeData.rfidTag[0] << F(". ");
-  Serial << "Skinks: ";
+  Serial << SnakeData.epochTime;// << F(" or ");
+  //printDateTime(SnakeData.epochTime);
+  Serial << F(", Snake: ") << SnakeData.rfidTag[0] << F(". ");
+  Serial << F("Skinks: ");
   for (int i = 1; i < SnakeData.rfidTagIndex; i++) {
     Serial << SnakeData.rfidTag[i] << F(", ");
   }
@@ -333,7 +349,7 @@ void readSIM900() {
  */
 void readDHT22() {
   //Read from the DHT22 sensor and assign values into variables, NULL is meant for raw data array.
-  int functionSuccess = DHT22.read2(&DHT22Temperature, &DHT22Humidity, NULL);
+  byte functionSuccess = DHT22.read2(&DHT22Temperature, &DHT22Humidity, NULL);
 
   //Check return value is NOT equal to constant for success
   if (functionSuccess != SimpleDHTErrSuccess) {
@@ -350,39 +366,26 @@ void createFileName(char* filename) {
   // Get current date time
   time_t dateTime = RTC.get();
 
-  // 8.3 format; 8 characters, 1 dot, 3 extension characters, null terminator
-  //char *filename = malloc(13);
-  //char filename[13];
-
   // Generate C string (char array) using date time and formaters
   snprintf(filename, 13, "%d%s%d%s%d.txt", year(dateTime), ((month(dateTime) < 10) ? "0" : ""), month(dateTime), ((day(dateTime) < 10) ? "0" : ""), day(dateTime));
-  Serial.print("Func: ");
-  Serial.println(filename);
-
-  // return filename;
-
-  // strcpy(filename, year(dateTime));             // Year
-  // strcat(filename, ((month(dateTime) < 10) ? "0" : ""));  // Add leading zero if below 10
-  // strcat(filename, month(dateTime));            // Month
-  // strcat(filename, ((day(dateTime) < 10) ? "0" : ""));    // Add leading zero if below 10
-  // strcat(filename, day(dateTime));              // Day
-  // strcat(filename, ".csv");                               // Add extension
+  // Serial.print(F("Func: "));
+  // Serial.println(filename);
 }
 
 /**
  * Function to create a new SD card file in the format (YYYYMMDD.csv) and 
  * used when saving snake data which was recorded today.
  */
-void createSDFileForToday() {
-  char filename[13];
-  createFileName(filename);
+// void createSDFileForToday() {
+//   char filename[13];
+//   createFileName(filename);
 
-  Serial.println(filename);
+//   Serial.println(filename);
 
-  // Create file on SD card
-  File storageFile = SD.open(filename, FILE_WRITE);
-  storageFile.close();
-}
+//   // Create file on SD card
+//   File storageFile = SD.open(filename, FILE_WRITE);
+//   storageFile.close();
+// }
 
 /**
  * Function to open the SD card file for today (YYYYMMDD.csv) and write the
@@ -397,12 +400,14 @@ void saveSnakeDataToSDCard() {
   Serial.print(F("File name: "));
   Serial.println(filename);
 
-  // Creates the file object for writing
-  File storageFile = SD.open(filename, FILE_WRITE);
+  // Clear write error
+  storageFile.writeError = false;
 
-  // if the file opened okay, write to it:
-  if (storageFile) {
-    Serial.println(F("Writing to"));
+  // O_CREAT - create the file if it does not exist
+  // O_APPEND - seek to the end of the file prior to each write
+  // O_WRITE - open for write
+  if (storageFile.open(filename, O_CREAT | O_APPEND | O_WRITE)) {
+    Serial.print(F("Writing to"));
     Serial.println(filename);
 
     char COMMA = ',';
@@ -423,43 +428,39 @@ void saveSnakeDataToSDCard() {
       }
     }
 
-    // OR
-    // storageFile.print(String(SnakeData.epochTime));
-    // storageFile.print(COMMA);
-    // storageFile.print(String(SnakeData.temperature));
-    // storageFile.print(COMMA);
-    // storageFile.print(String(SnakeData.humidity));
-    // storageFile.print(COMMA);
-    // storageFile.print(String(SnakeData.weight));
-    // storageFile.print(COMMA);
+    // Check for file writing errors
+    if (storageFile.writeError) {
+      Serial.print(F("SD write error"));
+    }
 
     // Close the file
-    storageFile.close();
+    if (!storageFile.close()) {
+      Serial.print(F("SD close file error"));
+    }
 
     Serial.println(F("Saved snake data to file."));
   }
   else {
     // If the file didn't open, print an error
-    Serial.println(F("Error opening"));
+    Serial.println(F("Error SD file open "));
     Serial.println(filename);
   }
 
   // DEBUG TODO remove later
   // Opening the file for reading and writing content to serial monitor
-  storageFile = SD.open(filename);
-  if (storageFile) {
-    Serial.println(filename);
-
+  if (storageFile.open(filename, O_READ) {
     // Read from the file until there's nothing else in it
-    while (storageFile.available()) {
-      Serial.write(storageFile.read());
-    }
+    int16_t c;
+    while ((c = file.read()) > 0) Serial.write((char)c);
+
+    Serial.println();
+    
     // Close the file
     storageFile.close();
   }
   else {
     // If the file didn't open, print an error
-    Serial.println(F("Error opening"));
+    Serial.println(F("Error opening "));
     Serial.println(filename);
   }
 }

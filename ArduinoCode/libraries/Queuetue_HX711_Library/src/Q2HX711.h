@@ -12,7 +12,7 @@
 // const uint16_t ADJUST_AVERAGE = 500;
 const long HX711_WEIGHT_BOUNDARY_TRIGGER = 17800l; // Difference in weight to "detect" snake, 17800 / 712 = 25 grams
 const unsigned short INITIAL_WEIGHT_POLLING = 1000;
-const unsigned short FAST_WEIGHT_POLLING = 100;
+const byte FAST_WEIGHT_POLLING = 100;
 
 class Q2HX711
 {
