@@ -103,8 +103,23 @@ struct snakeData {
   float temperature;
   float humidity;
   float weight; // highest and lowest?
+
+  // Constructor for empty/reset struct
+  snakeData() {
+    epochTime = 0;
+    for (int i = 0; i < MAX_RFID_TAGS; i++) {
+      rfidTag[i] = "";
+    }
+    rfidTagIndex = 0;
+    temperature = 0;
+    humidity = 0;
+    weight = 0;
+  }
 };
 struct snakeData SnakeData;
+
+// Empty struct
+//static const struct snakeData EmptySnakeDataStruct;
 
 
 
@@ -213,6 +228,12 @@ void loop() {
       // Throughout sensing time get the highest weight detected
       SnakeData.weight = HX711.getHighestDetectedWeight();
 
+      // Reset highest detected weight
+      HX711.resetHighestDetectedWeight();
+
+      // Reset SnakeData struct
+      //SnakeData = EmptySnakeDataStruct;
+
       printRecordedData();
 
       // Save snake recording to an SD card file
@@ -266,10 +287,8 @@ void recordSnakeData() {
   SnakeData.temperature = DHT22Temperature;
   SnakeData.humidity = DHT22Humidity;
 
-  // Get and assign weight data
+  // Get early max weight, will also assign later when detection ends
   SnakeData.weight = HX711.getHighestDetectedWeight();
-  // Reset highest detected weight
-  HX711.resetHighestDetectedWeight();
 }
 
 /**
@@ -360,7 +379,6 @@ void readDHT22() {
 
 /**
  * Function to create the file name for today, in format (YYYYMMDD.csv).
- * 
  */
 void createFileName(char* filename) {
   // Get current date time
@@ -368,8 +386,6 @@ void createFileName(char* filename) {
 
   // Generate C string (char array) using date time and formaters
   snprintf(filename, 13, "%d%s%d%s%d.txt", year(dateTime), ((month(dateTime) < 10) ? "0" : ""), month(dateTime), ((day(dateTime) < 10) ? "0" : ""), day(dateTime));
-  // Serial.print(F("Func: "));
-  // Serial.println(filename);
 }
 
 /**
@@ -397,9 +413,6 @@ void saveSnakeDataToSDCard() {
   char filename[13];
   createFileName(filename);
 
-  Serial.print(F("File name: "));
-  Serial.println(filename);
-
   // Clear write error
   storageFile.writeError = false;
 
@@ -407,7 +420,7 @@ void saveSnakeDataToSDCard() {
   // O_APPEND - seek to the end of the file prior to each write
   // O_WRITE - open for write
   if (storageFile.open(filename, O_CREAT | O_APPEND | O_WRITE)) {
-    Serial.print(F("Writing to"));
+    Serial.print(F("Writing to "));
     Serial.println(filename);
 
     char COMMA = ',';
@@ -427,6 +440,9 @@ void saveSnakeDataToSDCard() {
         storageFile.print(COMMA);
       }
     }
+
+    // Start new line
+    storageFile.println();
 
     // Check for file writing errors
     if (storageFile.writeError) {
@@ -448,10 +464,10 @@ void saveSnakeDataToSDCard() {
 
   // DEBUG TODO remove later
   // Opening the file for reading and writing content to serial monitor
-  if (storageFile.open(filename, O_READ) {
+  if (storageFile.open(filename, O_READ)) {
     // Read from the file until there's nothing else in it
     int16_t c;
-    while ((c = file.read()) > 0) Serial.write((char)c);
+    while ((c = storageFile.read()) > 0) Serial.write((char)c);
 
     Serial.println();
     
@@ -460,7 +476,7 @@ void saveSnakeDataToSDCard() {
   }
   else {
     // If the file didn't open, print an error
-    Serial.println(F("Error opening "));
+    Serial.print(F("Error opening/reading "));
     Serial.println(filename);
   }
 }

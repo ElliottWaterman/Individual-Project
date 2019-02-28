@@ -45,7 +45,7 @@ void Q2HX711::update() {
       // Increase polling interval if weight detected (up to 10Hz or 80Hz)
       millisInterval = FAST_WEIGHT_POLLING;   // 0.1s
 
-      Serial << "Weight change detected: " << weightDifference << " or " << normaliseLongToWeight(weightDifference) << endl;
+      Serial << "Weight change detected: " << weightDifference << " or " << (weightDifference/SCALE_FACTOR) << endl;
     }
     else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
       // Weight is decreasing.. TODO?
