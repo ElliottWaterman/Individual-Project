@@ -30,7 +30,7 @@ class Q2HX711
 		long initialZeroPosition = 0;	// Average weight at start up
 		long currentZeroPosition = 0;	// Current zero position (opposite of tare weight; with added weight)
 		
-		// Unnormalised weight vars 
+		// Unnormalised weight vars
 		long currentWeight = 0;
 		long previousWeight = 0;
 		long highestDetectedWeight = 0;

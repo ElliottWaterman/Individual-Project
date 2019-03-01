@@ -19,31 +19,17 @@
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 #include <RFID_Priority1Design.h> //RFID_P1D library used to read animal FBD-X tags
 #include <Fat16.h>          //SD library used to read and write to a FAT16 SD card module
+//#include <SIM900.h>         //SIM900 library used to send SMS messages containing snake data
 
 
 /* DEFINES */
-// These are integers but should be const byte X = 4;!
-// #define PIN_WAKE_UP       2   //Interrupt pin (or #3) to wake up the Arduino
-// #define PIN_DHT22         3   //Digital pin connected to the DHT22 module
-// #define PIN_RFID_POWER    4   //Digital pin connected BJT/MOSFET switch to power module
-// #define PIN_SIM900_RX     6   //Receiving pin for the SIM900 module
-// #define PIN_SIM900_TX     7   //Transmitting pin for the SIM900 module
-// #define PIN_RFID_RX       8   //Receiving pin on Arduino (use tx wire on board)
-// #define PIN_RFID_TX       9   //Transmitting pin on Arduino (use rx wire on board)
-
-// #define PIN_SD            A0  //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
-// //#define PIN_SPI         11  // 12, 13 pins work
-// #define PIN_HX711_DATA    A2  //Weight sensor data pin
-// #define PIN_HX711_CLOCK   A3  //Weight sensor clock pin
-// #define PIN_RTC_SDA       A4  //Connect RTC data to Arduino pin A4
-// #define PIN_RTC_SCL       A5  //Connect RTC clock to Arduino pin A5
-//#define EXAMPLE           1   //Comment
 
 
 /* CONSTANTS */
 const byte PIN_WAKE_UP =      2;  //Interrupt pin (or #3) to wake up the Arduino
 const byte PIN_DHT22 =        3;  //Digital pin connected to the DHT22 module
 const byte PIN_RFID_POWER =   4;  //Digital pin connected BJT/MOSFET switch to power module
+const byte PIN_SIM900_POWER = 5;  
 const byte PIN_SIM900_RX =    6;  //Receiving pin for the SIM900 module
 const byte PIN_SIM900_TX =    7;  //Transmitting pin for the SIM900 module
 const byte PIN_RFID_RX =      8;  //Receiving pin on Arduino (use tx wire on board)
@@ -75,7 +61,8 @@ const byte MAX_RFID_TAGS = 4;
 
 
 /* LIBRARIES INSTANTIATED */
-SoftwareSerial SIM900(PIN_SIM900_RX, PIN_SIM900_TX);  //Controls the SIM900 module
+SoftwareSerial SIM900_Serial(PIN_SIM900_RX, PIN_SIM900_TX); //Create soft serial to pass to SIM900 class
+SIM900 SIM(&SIM900_Serial, PIN_SIM900_POWER);                              //Controls the SIM900 module
 
 SoftwareSerial RFID_Serial(PIN_RFID_RX, PIN_RFID_TX); //Create soft serial to pass to RFID_P1D class
 RFID_P1D RFID(&RFID_Serial, PIN_RFID_POWER);          //Controls the RFID module
@@ -94,6 +81,9 @@ float DHT22Humidity;
 SdCard card;
 Fat16 storageFile;
 
+// Flag to determine if SMS message of snake data is sent
+boolean snakeDataSavedToFile = false;
+
 
 /* STRUCTURES */
 struct snakeData {
@@ -105,9 +95,6 @@ struct snakeData {
   float weight;   // highest and lowest?
 };
 struct snakeData SnakeData;
-
-// Empty struct
-//static const struct snakeData EmptySnakeDataStruct;
 
 
 
@@ -164,9 +151,9 @@ void setup() {
   }
 
   // DEBUG
-  pinMode(LED_BUILTIN, OUTPUT);       //The built-in LED on pin 13 indicates when the Arduino is asleep
-  pinMode(PIN_WAKE_UP, INPUT_PULLUP); //Set pin as an input which uses the built-in pullup resistor
-  //digitalWrite(LED_BUILTIN, HIGH);    //Turn built-in LED on
+  pinMode(LED_BUILTIN, OUTPUT);       // The built-in LED on pin 13 indicates when the Arduino is asleep
+  pinMode(PIN_WAKE_UP, INPUT_PULLUP); // Set pin as an input which uses the built-in pullup resistor
+  //digitalWrite(LED_BUILTIN, HIGH);    // Turn built-in LED on
 
   Serial.println(F("S C."));
 }
@@ -224,8 +211,8 @@ void loop() {
 
       // Reset SnakeData struct
       resetSnakeData();
-      //SnakeData = EmptySnakeDataStruct;
 
+      // DEBUG print snake data
       printRecordedData();
 
       // Save snake recording to an SD card file
@@ -239,8 +226,6 @@ void loop() {
   // Get any incoming SIM900 data
   //readSIM900();
 
-  //Going_To_Sleep();
-
   // PUESDO-code
   // Check RTC alarm to sleep module for night time
     // Check all power states / if snake is still present
@@ -249,7 +234,24 @@ void loop() {
       // Set alarm interrupt for morning
       // Turn off other modules if necessary
       // Sleep Arduino
-}
+  
+  // Check time is after 8:00pm
+  if (hour(RTC.get()) >= 20) {
+    // Power down other modules if needed
+
+    // Check SD file exist for today
+    if (snakeDataSavedToFile) {
+      // Send SMS message to backend
+      //sendSnakeDataSMS();
+
+      // Reset snake data saved boolean
+      //snakeDataSavedToFile = false;
+    }
+
+    // Sleep Arduino
+    sleepArduino();
+  }
+} // End loop
 
 
 /* FUNCTIONS */
@@ -257,9 +259,8 @@ void loop() {
  * Function to set an interrupt alarm for waking Arduino in the morning.
  */
 void setMorningWakeupAlarm() {
-  // Set alarm
-  RTC.setAlarm(ALM1_MATCH_HOURS, 0, 0, 9, 0);
-  //RTC.setAlarm(ALM2_MATCH_HOURS, 0, 30, 6, 0);
+  // Set alarm for 9:00am in the morning
+  RTC.setAlarm(ALM1_MATCH_HOURS, 0, 0, 9, 0);     //ALM2_MATCH_HOURS
 
   // clear the alarm flag
   RTC.alarm(ALARM_1);
@@ -468,6 +469,9 @@ void saveSnakeDataToSDCard() {
     // Start new line
     storageFile.println();
 
+    // Set snake data was saved to file attribute
+    snakeDataSavedToFile = true;
+
     // Check for file writing errors
     if (storageFile.writeError) {
       Serial.print(F("SD write error"));
@@ -524,39 +528,66 @@ void saveSnakeDataToSDCard() {
 /**
  * Function TODO
  */
-// void Going_To_Sleep() {
-//   sleep_enable();                       //Enabling sleep mode
-//   //Pin to detect change, method to call, the change to detect
-//   attachInterrupt(0, wakeUp, LOW);      //attaching an interrupt to pin d2
-//   set_sleep_mode(SLEEP_MODE_PWR_DOWN);  //Setting the sleep mode, in our case full sleep
-//   digitalWrite(LED_BUILTIN, LOW);       //turning LED off
+void sleepArduino() {
+  // Enable sleep mode
+  sleep_enable();
 
-//   time_t t;                             // creates temp time variable
-//   t = RTC.get();                        //gets current time from rtc
-//   Serial.println("Sleep  Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
-//   delay(1000);                          //wait a second to allow the led to be turned off before going to sleep
-//   sleep_cpu();                          //activating sleep mode
+  // Pin to detect change, method to call, the change to detect
+  // Attach an interrupt to pin D2
+  attachInterrupt(0, wakeUp, LOW);
 
-//   Serial.println("just woke up!");      //next line of code executed after the interrupt
-//   digitalWrite(LED_BUILTIN, HIGH);      //turning LED on
-//   t = RTC.get();
-//   Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
-//   //temp_Humi();                          //function that reads the temp and the humidity
-//   //Set New Alarm
-//   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);
+  // Setting the sleep mode, in our case full sleep
+  /* 
+   * Types of sleep:
+   *  SLEEP_MODE_IDLE      - The least power savings
+   *  SLEEP_MODE_ADC
+   *  SLEEP_MODE_PWR_SAVE
+   *  SLEEP_MODE_STANDBY
+   *  SLEEP_MODE_PWR_DOWN  - The most power savings
+   */
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 
-//   // clear the alarm flag
-//   RTC.alarm(ALARM_1);
-// }
+  // Turn built in LED off
+  digitalWrite(LED_BUILTIN, LOW);
+
+  time_t t;
+  t = RTC.get();
+  Serial.println("Sleep  Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
+
+  // Wait a second to allow the led to be turned off before going to sleep
+  delay(1000);
+
+  // Activate sleep mode
+  sleep_cpu();
+
+  // Next line of code executed after the interrupt
+  Serial.println(F("Just woke up!"));
+  
+  // Turn LED on
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  t = RTC.get();
+  Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
+
+  // Set New Alarm
+  RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);
+
+  // Clear the alarm flag
+  RTC.alarm(ALARM_1);
+}
 
 /**
  * Function TODO
  */
-// void wakeUp() {
-//   Serial.println("Interrrupt Fired");//Print message to serial monitor
-//   sleep_disable();//Disable sleep mode
-//   detachInterrupt(0); //Removes the interrupt from pin 2;
-// }
+void wakeUp() {
+  Serial.println(F("Interrrupt Fired"));
+
+  // Disable sleep mode
+  sleep_disable();
+
+  // Removes the interrupt from pin 2
+  detachInterrupt(0);
+}
 
 // template <class T> void DEBUGSecondDisplay(const T toDisplay) {
 //   if (millis() - DEBUGStartTime > 1000) {
