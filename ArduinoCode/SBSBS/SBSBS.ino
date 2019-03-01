@@ -102,19 +102,7 @@ struct snakeData {
   byte rfidTagIndex = 0;
   float temperature;
   float humidity;
-  float weight; // highest and lowest?
-
-  // Constructor for empty/reset struct
-  snakeData() {
-    epochTime = 0;
-    for (int i = 0; i < MAX_RFID_TAGS; i++) {
-      rfidTag[i] = "";
-    }
-    rfidTagIndex = 0;
-    temperature = 0;
-    humidity = 0;
-    weight = 0;
-  }
+  float weight;   // highest and lowest?
 };
 struct snakeData SnakeData;
 
@@ -158,6 +146,9 @@ void setup() {
     Serial.println(F("RTC failed!"));
     while(1);
   }
+
+  // Setup morning wakeup alarm
+  setMorningWakeupAlarm();
 
   // Serial.println(F("Connecting to SD Card Reader"));
   // Initialize the SD card
@@ -232,6 +223,7 @@ void loop() {
       HX711.resetHighestDetectedWeight();
 
       // Reset SnakeData struct
+      resetSnakeData();
       //SnakeData = EmptySnakeDataStruct;
 
       printRecordedData();
@@ -261,6 +253,36 @@ void loop() {
 
 
 /* FUNCTIONS */
+/**
+ * Function to set an interrupt alarm for waking Arduino in the morning.
+ */
+void setMorningWakeupAlarm() {
+  // Set alarm
+  RTC.setAlarm(ALM1_MATCH_HOURS, 0, 0, 9, 0);
+  //RTC.setAlarm(ALM2_MATCH_HOURS, 0, 30, 6, 0);
+
+  // clear the alarm flag
+  RTC.alarm(ALARM_1);
+  // configure the INT/SQW pin for "interrupt" operation (disable square wave output)
+  RTC.squareWave(SQWAVE_NONE);
+  // enable interrupt output for Alarm 1
+  RTC.alarmInterrupt(ALARM_1, true);
+}
+
+/**
+ * Function to reset SnakeData struct variables to 0.
+ */
+void resetSnakeData() {
+  SnakeData.epochTime = 0;
+  for (int i = 0; i < MAX_RFID_TAGS; i++) {
+    SnakeData.rfidTag[i] = "";
+  }
+  SnakeData.rfidTagIndex = 0;
+  SnakeData.temperature = 0;
+  SnakeData.humidity = 0;
+  SnakeData.weight = 0;
+}
+
 void printRecordedData() {
   Serial << SnakeData.epochTime;// << F(" or ");
   //printDateTime(SnakeData.epochTime);
@@ -295,6 +317,7 @@ void recordSnakeData() {
  * Function to record further RFID tags read to the snake data struct.
  */
 void recordSkinkTags() {
+  boolean sameTag = false;
   String rfidTagToRecord = RFID.getMessage();
 
   Serial << F("Recording skink tag") << endl;
@@ -305,19 +328,20 @@ void recordSkinkTags() {
     if (SnakeData.rfidTag[index].equals(rfidTagToRecord)) {
       // Exit function without saving
       Serial << F("Same tag read: ") << RFID.getMessage() << endl;
+      sameTag = true;
       return;
     }
   }
 
   Serial << F("Index: ") << SnakeData.rfidTagIndex << endl;
 
-  if (SnakeData.rfidTagIndex < MAX_RFID_TAGS) {
+  if (SnakeData.rfidTagIndex < MAX_RFID_TAGS && !sameTag) {
     // Add tag to list of tags in the snake
     SnakeData.rfidTag[SnakeData.rfidTagIndex++] = RFID.getMessage();
   }
   else {
     // Too many skinks been eaten, over MAX_RFID_TAGS (5)
-    Serial.println(F("Too many snake/skink tags read!"));
+    Serial.println(F("Too many skink tags read!"));
   }
 }
 
