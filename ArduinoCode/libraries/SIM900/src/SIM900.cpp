@@ -14,17 +14,15 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
     // Set power control pin on Arduino
     POWER_PIN = power_pin;
 
-    // TODO: Could set reader active here (SRA<crn>)
-    //SIM->write("SRA" + (char)13);
-
     // Setup variables
     // Power and timing
     poweredOn = false;       // Starts turned off as Arduino pin is low
     powerOnMillis = -1;
-    totalPowerOnMillis = INITIAL_POWER_ON_MILLIS;
+    // Connectivity vars
+    connectedToNetwork = false;
     // Message
     messageIndex = 0;
-    tagRead = false;
+    messageReceived = false;
 }
 
 /**
@@ -43,28 +41,30 @@ void SIM900::update() {
         unsigned long currentMillis = millis();
 
         // Module is ON so update process
-        if (currentMillis - powerOnMillis <= totalPowerOnMillis) {
+        if (currentMillis - powerOnMillis <= INITIAL_POWER_ON_MILLIS) {
             // Check module is connected to the network
             if (connectedToNetwork) {
-                //T
-                read();
+                // 
+
+                // Set flag true for sending an SMS
+                dailySMSSent = true;
             }
             else {
                 // Send command to check network connection
-                sendATCommands("AT+...");
+                sendATCommands("AT+CREG=1");
+                sendATCommands("AT+COPS=0,2");
             }
+
+            // Always read for a reply
+            read();
         }
         // Module has elapsed power on time so turn OFF
-        else if (currentMillis - powerOnMillis > totalPowerOnMillis) {
+        else if (currentMillis - powerOnMillis > INITIAL_POWER_ON_MILLIS) {
             // Turn off module
             powerDown();
 
             // Reset millis when module was powered on
             powerOnMillis = -1;
-
-            // Reset total power on run time
-            //totalPowerOnMillis = INITIAL_POWER_ON_MILLIS;
-            // TODO if static on time remove totalPowerOnMillis var and replace with constant
         }
     } // End poweredOn if
 } // End update function
@@ -116,29 +116,12 @@ void SIM900::sendATCommands(char *message) {
     SIM->print(message);
 }
 
-
-String SIM900::getMessage() {
-    return message;
-}
-
-boolean SIM900::hasTagBeenRead() {
-	return tagRead;
-}
-
-void SIM900::resetTagRead() {
-	tagRead = false;
-}
-
-boolean SIM900::isFirstTagSincePowerUp() {
-    return firstTagSincePowerUp;
-}
-
-void SIM900::resetFirstTagSincePowerUp() {
-    firstTagSincePowerUp = false;
-}
-
 boolean SIM900::getPowerStatus() {
     return poweredOn;
+}
+
+boolean SIM900::dailySMSSent() {
+    return dailySMSSent;
 }
 
 /**
@@ -148,6 +131,7 @@ void SIM900::powerDown() {
     if (poweredOn && POWER_PIN != -1) {
         // Turn off module
         digitalWrite(POWER_PIN, LOW);
+
         // Set power state to off
         poweredOn = false;
 
@@ -170,9 +154,6 @@ void SIM900::powerUp() {
 
         // Save time in millis when module was turned on
         powerOnMillis = millis();
-
-        // Set flag for reading first tag after starting
-        firstTagSincePowerUp = true;
 
         // DEBUG
         digitalWrite(LED_BUILTIN, HIGH);  // DEBUG LED

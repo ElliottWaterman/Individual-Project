@@ -8,9 +8,15 @@ const byte MAX_SIM_MESSAGE_SIZE = 34;
 
 const unsigned long INITIAL_POWER_ON_MILLIS = 300000;   // Number of milliseconds to stay powered on (5 minutes)
 
+// Text message commands
 const char *TEXT_MODE = "AT+CMGF=1";
 const char *PHONE_NUMBER = "AT+CMGS=\"+441233800093\"";
-const char *PHONE_NUMBER = "AT+CMGS=\"+441233800093\"";
+const char *END_MESSAGE_CHAR = char(26);
+const char *NUMBER_OF_MESSAGES = "+CMGS:";
+
+// Replies
+const char *OK = "OK";
+const char *ERR = "ERR";
 
 
 class SIM900
@@ -24,13 +30,7 @@ class SIM900
         void update();
         boolean read();
         void sendATCommands();
-        void 
-
-        // Tag read
-        boolean hasTagBeenRead();
-        void resetTagRead();
-        boolean isFirstTagSincePowerUp();
-        void resetFirstTagSincePowerUp();
+        boolean dailySMSSent();
 
         // Power funcs
         void powerDown();
@@ -46,15 +46,17 @@ class SIM900
         // Power and timing vars
         boolean poweredOn;                  // Hold the state of module power, on (true) or off (false)
         unsigned long powerOnMillis;        // Time in milliseconds when the module was powered on
-        unsigned long totalPowerOnMillis;   // Total number of milliseconds to run, to be powered on
 
         // Connectivity vars
-        boolean connectedToNetwork = false;
+        boolean connectedToNetwork;
 
         // Message vars
         char rawMessage[MAX_RFID_MESSAGE_SIZE];     // Character array holding incoming bytes from module
         byte messageIndex;                          // Index of the next character to place
         boolean messageReceived;                    // Flag to tell when a message was received
+
+        // vars
+        boolean dailySMSSent = false;
 };
 
 #endif

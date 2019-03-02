@@ -238,18 +238,33 @@ void loop() {
   // Check time is after 8:00pm
   if (hour(RTC.get()) >= 20) {
     // Power down other modules if needed
+    //RFID.powerDown();
 
-    // Check SD file exist for today
-    if (snakeDataSavedToFile) {
+    // Power on SIM900 module
+    SIM.powerUp();
+
+    // Check SIM is powered on and data has been saved to SD card
+    if (SIM.poweredOn() && snakeDataSavedToFile) {
+      // Update SIM900 module
+      SIM.update();
+
+      if (SIM.dailySMSSent()) {
+        snakeDataSavedToFile = false;
+      }
       // Send SMS message to backend
       //sendSnakeDataSMS();
 
       // Reset snake data saved boolean
       //snakeDataSavedToFile = false;
     }
+    else if (!snakeDataSavedToFile) {
+      // Sleep Arduino
+      sleepArduino();
+    }
+  }
+  // Do normal processes
+  else {
 
-    // Sleep Arduino
-    sleepArduino();
   }
 } // End loop
 
