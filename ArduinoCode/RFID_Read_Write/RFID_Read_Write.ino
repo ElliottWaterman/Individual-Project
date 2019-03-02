@@ -28,7 +28,7 @@ int recievedTagInfo = 0;
 
 void loop() {
   if (RFID.listen()) {
-    Serial.printlln("Cannot listen!");
+    Serial.println("Cannot listen!");
   }
   
   if (RFID.available() && buffer_pos < (BUFFER_SIZE - 1)) {

@@ -4,19 +4,25 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 
-const byte MAX_SIM_MESSAGE_SIZE = 34;
+const byte MAX_SIM_MESSAGE_SIZE = 30;
 
 const unsigned long INITIAL_POWER_ON_MILLIS = 300000;   // Number of milliseconds to stay powered on (5 minutes)
+
+// Connectivity commands
+const char *SET_UPDATES_FOR_NETWORK_REGISTRATION = "AT+CREG=1";
+const char *TEST_NETWORK_REGISTRATION = "AT+CREG?";
+const char *HOME_NETWORK_REGISTERED = "+CREG: 1";
+const char *ROAMING_NETWORK_REGISTERED = "+CREG: 5";
 
 // Text message commands
 const char *TEXT_MODE = "AT+CMGF=1";
 const char *PHONE_NUMBER = "AT+CMGS=\"+441233800093\"";
 const char *END_MESSAGE_CHAR = char(26);
-const char *NUMBER_OF_MESSAGES = "+CMGS:";
 
 // Replies
 const char *OK = "OK";
 const char *ERR = "ERR";
+const char *NUMBER_OF_MESSAGES = "+CMGS:";
 
 
 class SIM900
