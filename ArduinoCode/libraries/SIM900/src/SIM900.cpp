@@ -23,6 +23,8 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
     // Message
     messageIndex = 0;
     messageReceived = false;
+    // Text message vars
+    textMessageBodyReady = false;
 }
 
 /**
@@ -41,50 +43,31 @@ void SIM900::update() {
         unsigned long currentMillis = millis();
 
         // Module is ON so update process
-        if (currentMillis - powerOnMillis <= INITIAL_POWER_ON_MILLIS) {
+        if (currentMillis - powerOnMillis <= SIM_POWER_ON_MILLIS) {
             // Check module is connected to the network
             if (connectedToNetwork) {
-                // 
+                if (!textMessageBodyReady) {
+                    // Setup text mode on the module
+                    sendATCommands(TEXT_MODE);
+                    sendATCommands(CARRIAGE_RETURN);
 
-                // Set flag true for sending an SMS
-                dailySMSSent = true;
+                    // Set phone number to send text to
+                    sendATCommands(PHONE_NUMBER);
+                    sendATCommands(CARRIAGE_RETURN);
+
+                    // Set flag ready for typing text message
+                    textMessageBodyReady = true;
+                }
             }
+            // Send commands to test network registration
             else {
-                if (numberOfCommandsSent == 0 && numberOfResponsesReceived == 0) {
-                    // Send command 1
-
-                    // Increment number of commands sent
-                    numberOfCommandsSent++;
-                }
-                else if (numberOfCommandsSent == 1 && numberOfResponsesReceived == 1) {
-                    // Send command 2
-                }
-                else if (numberOfCommandsSent == 2 && numberOfResponsesReceived == 2) {
-                    // Send command 3
-
-                    // WHEN SENDING at this point can just spam println to SIM900
-                    // ie AT+CMGS="", the message text, and the char(26). Then wait for OK
-                }
-                else if (numberOfCommandsSent == 3 && numberOfResponsesReceived == 3) {
-                    // Send command 3
-                }
-                else if (numberOfCommandsSent == 4 && numberOfResponsesReceived == 4) {
-                    // Send command 3
-                }
-                if (!sentCommand && !receivedResponse) {
-                    // Send command to check network connection
+                // Test every 10 seconds for network registration 
+                if (currentMillis - lastNetworkCheck <= CHECK_NETWORK_MILLIS) {
+                    // Send network registration check
                     sendATCommands(TEST_NETWORK_REGISTRATION);
-                    sentCommand = true;
-                }
-                // Waiting on a response from module
-                else if (sentCommand && !receivedResponse) {
 
-                }
-                // Received a response from the module
-                else if (sentCommand && receivedResponse) {
-                    if (rawMessage.equals(HOME_NETWORK_REGISTERED)) {
-                        connectedToNetwork = true;
-                    }
+                    // Update last checked millis
+                    lastNetworkCheck = currentMillis;
                 }
             }
 
@@ -92,7 +75,7 @@ void SIM900::update() {
             read();
         }
         // Module has elapsed power on time so turn OFF
-        else if (currentMillis - powerOnMillis > INITIAL_POWER_ON_MILLIS) {
+        else if (currentMillis - powerOnMillis > SIM_POWER_ON_MILLIS) {
             // Turn off module
             powerDown();
 
@@ -103,9 +86,9 @@ void SIM900::update() {
 } // End update function
 
 /**
- * Function to listen and read messages from the module
+ * Function to read and read messages from the module
  */
-boolean SIM900::read() {
+void SIM900::read() {
     // Listen to serial port for SIM communication
     if (SIM->listen()) {
         Serial.println(F("Cannot listen to SIM!"));
@@ -117,7 +100,7 @@ boolean SIM900::read() {
         rawMessage[messageIndex++] = inByte;
 
         // Entire message has been received, \r and \n mean "end of message"
-        if (c == '\r' || c == '\n') {
+        if (inByte == '\r' || inByte == '\n') {
             // Terminate the raw message replacing both the '\r' and '\n' characters
             messageIndex--;
             rawMessage[messageIndex] = '\0';
@@ -131,30 +114,49 @@ boolean SIM900::read() {
             messageIndex = 0;
 
             // Compare received message to list of expected values
-            if (strcmp(rawMessage, "OK") == 0) {
-                Serial.println("Hit OK");
+            if (strcmp(rawMessage, OK) == 0) {
+                Serial.println(F("Hit OK"));
             }
-            else if (strcmp(rawMessage, "ERROR") == 0) {
-                Serial.println("Hit ERROR");
+            else if (strcmp(rawMessage, ERROR) == 0) {
+                Serial.println(F("Hit ERROR"));
+            }
+            // Ignore reply of the number of text messages sent
+            else if (strncmp(rawMessage, NUMBER_OF_MESSAGES, 6) == 0) {
+
+            }
+
+            // Always check for network connection status updates
+            if (strcmp(rawMessage, HOME_NETWORK_REGISTERED) == 0) {
+                connectedToNetwork = true;
+                Serial.println(F("Connected to network"));
+            }
+            else if (strcmp(rawMessage, ROAMING_NETWORK_REGISTERED) == 0) {
+                connectedToNetwork = true;
+                Serial.println(F("Connected to network roaming"));
             }
         }
     }
-    return false;
 }
 
 /**
  * Function to send AT commands to the module
  */
+void SIM900::sendATCommands(const char *&message) {
+    SIM->print(message);
+}
 void SIM900::sendATCommands(char *message) {
     SIM->print(message);
+}
+void SIM900::sendATCommands(char character) {
+    SIM->print(character);
 }
 
 boolean SIM900::getPowerStatus() {
     return poweredOn;
 }
 
-boolean SIM900::dailySMSSent() {
-    return dailySMSSent;
+boolean SIM900::isTextMessageBodyReady() {
+    return textMessageBodyReady;
 }
 
 /**

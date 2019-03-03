@@ -19,7 +19,7 @@
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 #include <RFID_Priority1Design.h> //RFID_P1D library used to read animal FBD-X tags
 #include <Fat16.h>          //SD library used to read and write to a FAT16 SD card module
-//#include <SIM900.h>         //SIM900 library used to send SMS messages containing snake data
+#include <SIM900.h>         //SIM900 library used to send SMS messages containing snake data
 
 
 /* DEFINES */
@@ -81,7 +81,7 @@ float DHT22Humidity;
 SdCard card;
 Fat16 storageFile;
 
-// Flag to determine if SMS message of snake data is sent
+// Flag to determine if an SMS message of snake data should be sent
 boolean snakeDataSavedToFile = false;
 
 
@@ -240,24 +240,33 @@ void loop() {
     // Power down other modules if needed
     //RFID.powerDown();
 
-    // Power on SIM900 module
-    SIM.powerUp();
+    // Check snake data has been saved
+    if (snakeDataSavedToFile) {
+      // Power on SIM900 module, only executes power on once
+      SIM.powerUp();
 
-    // Check SIM is powered on and data has been saved to SD card
-    if (SIM.poweredOn() && snakeDataSavedToFile) {
-      // Update SIM900 module
-      SIM.update();
+      // Check SIM is powered on
+      if (SIM.getPowerStatus()) {
+        // Update SIM900 module
+        SIM.update();
 
-      if (SIM.dailySMSSent()) {
-        snakeDataSavedToFile = false;
+        // Parse SD file into text message body
+        if (SIM.isTextMessageBodyReady()) {
+          // Send SMS message to Twilio backend server
+          sendSnakeDataSMS();
+
+          // Reset snake data saved boolean
+          snakeDataSavedToFile = false;
+
+          // On next loop function after this is set the arduino will sleep
+        }
       }
-      // Send SMS message to backend
-      //sendSnakeDataSMS();
-
-      // Reset snake data saved boolean
-      //snakeDataSavedToFile = false;
     }
-    else if (!snakeDataSavedToFile) {
+    // No snake data was saved so sleep for the night
+    else {
+      // Set morning awake alarm
+      setMorningWakeupAlarm();
+
       // Sleep Arduino
       sleepArduino();
     }
@@ -271,18 +280,37 @@ void loop() {
 
 /* FUNCTIONS */
 /**
- * Function to set an interrupt alarm for waking Arduino in the morning.
+ * Function to read the contents of today's SD file and generate a text message 
+ * body by sending AT commands to the SIM900 module.
  */
-void setMorningWakeupAlarm() {
-  // Set alarm for 9:00am in the morning
-  RTC.setAlarm(ALM1_MATCH_HOURS, 0, 0, 9, 0);     //ALM2_MATCH_HOURS
+void sendSnakeDataSMS() {
+  char filename[13];
+  createFileName(filename);
 
-  // clear the alarm flag
-  RTC.alarm(ALARM_1);
-  // configure the INT/SQW pin for "interrupt" operation (disable square wave output)
-  RTC.squareWave(SQWAVE_NONE);
-  // enable interrupt output for Alarm 1
-  RTC.alarmInterrupt(ALARM_1, true);
+  // Opening the file for reading and writing content to SIM900 module
+  if (storageFile.open(filename, O_READ)) {
+    // Read from the file until there's nothing else in it
+    int16_t c;
+    while ((c = storageFile.read()) > 0) {
+      // Print each character to text message body
+      SIM.sendATCommands((char)c);
+
+      // DEBUG print to console the "text message"
+      Serial.print((char)c);
+    }
+    // Send end of message character
+    SIM.sendATCommands(char(26));
+
+    Serial.println(F("Sent TXT Msg."));
+    
+    // Close the file
+    storageFile.close();
+  }
+  else {
+    // If the file didn't open, print an error
+    Serial.print(F("Send txtmsg err reading "));
+    Serial.println(filename);
+  }
 }
 
 /**
@@ -299,6 +327,9 @@ void resetSnakeData() {
   SnakeData.weight = 0;
 }
 
+/**
+ * DEBUG Function to print the contents of the snake data struct.
+ */
 void printRecordedData() {
   Serial << SnakeData.epochTime;// << F(" or ");
   //printDateTime(SnakeData.epochTime);
@@ -374,34 +405,6 @@ void printDateTime(time_t t) {
 }
 
 /**
- * Function to read messages from the SIM900 module
- */
-void readSIM900() {
-  SIM900.listen();
-  char response[18];
-  int simIndex = 0;
-  while (SIM900.available() > 0) {
-    char inByte = SIM900.read();
-    if (inByte != '\r' && simIndex < 17) {
-      response[simIndex++] = inByte;
-    }
-    else {
-      // Terminate buffer
-      response[simIndex++] = '\0';
-
-      Serial.println(response);
-
-      if (response == "OK") {
-        // do something
-      }
-      else if (response == "ERR") {
-        // do something else
-      }
-    }
-  }
-}
-
-/**
  * Function to read the temperature and humidity of the DHT22 sensor.
  * If read more than once per 2 seconds it will print an error.
  * Temperature and Humidity values will be same as last read if error.
@@ -427,21 +430,6 @@ void createFileName(char* filename) {
   // Generate C string (char array) using date time and formaters
   snprintf(filename, 13, "%d%s%d%s%d.txt", year(dateTime), ((month(dateTime) < 10) ? "0" : ""), month(dateTime), ((day(dateTime) < 10) ? "0" : ""), day(dateTime));
 }
-
-/**
- * Function to create a new SD card file in the format (YYYYMMDD.csv) and 
- * used when saving snake data which was recorded today.
- */
-// void createSDFileForToday() {
-//   char filename[13];
-//   createFileName(filename);
-
-//   Serial.println(filename);
-
-//   // Create file on SD card
-//   File storageFile = SD.open(filename, FILE_WRITE);
-//   storageFile.close();
-// }
 
 /**
  * Function to open the SD card file for today (YYYYMMDD.csv) and write the
@@ -541,7 +529,22 @@ void saveSnakeDataToSDCard() {
 // }
 
 /**
- * Function TODO
+ * Function to set an interrupt alarm for waking Arduino in the morning.
+ */
+void setMorningWakeupAlarm() {
+  // Set alarm for 9:00am in the morning
+  RTC.setAlarm(ALM1_MATCH_HOURS, 0, 0, 9, 0);     //ALM2_MATCH_HOURS
+
+  // clear the alarm flag
+  RTC.alarm(ALARM_1);
+  // configure the INT/SQW pin for "interrupt" operation (disable square wave output)
+  RTC.squareWave(SQWAVE_NONE);
+  // enable interrupt output for Alarm 1
+  RTC.alarmInterrupt(ALARM_1, true);
+}
+
+/**
+ * Function to set up and execute sleep mode for the Arduino.
  */
 void sleepArduino() {
   // Enable sleep mode
@@ -592,7 +595,7 @@ void sleepArduino() {
 }
 
 /**
- * Function TODO
+ * Function that is run immediately after Arduino is woken from sleep mode.
  */
 void wakeUp() {
   Serial.println(F("Interrrupt Fired"));
