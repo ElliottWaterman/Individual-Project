@@ -1,5 +1,5 @@
-#ifndef SIM900_h
-#define SIM900_h
+#ifndef SIM900_SHIELD_h
+#define SIM900_SHIELD_h
 
 #include <Arduino.h>
 #include <SoftwareSerial.h>
@@ -9,22 +9,37 @@ const byte MAX_SIM_MESSAGE_SIZE = 30;               // Size of receiving message
 const unsigned long SIM_POWER_ON_MILLIS = 300000;   // Number of milliseconds to stay powered on (5 minutes)
 const unsigned long CHECK_NETWORK_MILLIS = 10000;   // Number of milliseconds between checking network registration status
 
+// // Connectivity commands
+// //const char *SET_UPDATES_FOR_NETWORK_REGISTRATION = "AT+CREG=1";
+// const char *TEST_NETWORK_REGISTRATION = "AT+CREG?";
+// const char *HOME_NETWORK_REGISTERED = "+CREG: 1";
+// const char *ROAMING_NETWORK_REGISTERED = "+CREG: 5";
+
+// // Text message commands
+// const char CARRIAGE_RETURN = '\r';
+// const char *TEXT_MODE = "AT+CMGF=1";
+// const char *PHONE_NUMBER = "AT+CMGS=\"+441233800093\""; // Twilio Phone Number
+// //const char *END_MESSAGE_CHAR = char(26);
+
+// // Replies
+// const char *OK = "OK";
+// const char *ERROR = "ERROR";
+// const char *NUMBER_OF_MESSAGES = "+CMGS:";
+
 // Connectivity commands
-//const char *SET_UPDATES_FOR_NETWORK_REGISTRATION = "AT+CREG=1";
-const char *TEST_NETWORK_REGISTRATION = "AT+CREG?";
-const char *HOME_NETWORK_REGISTERED = "+CREG: 1";
-const char *ROAMING_NETWORK_REGISTERED = "+CREG: 5";
+#define TEST_NETWORK_REGISTRATION   "AT+CREG?"
+#define HOME_NETWORK_REGISTERED     "+CREG: 1"
+#define ROAMING_NETWORK_REGISTERED  "+CREG: 5"
 
 // Text message commands
-const char CARRIAGE_RETURN = '\r';
-const char *TEXT_MODE = "AT+CMGF=1";
-const char *PHONE_NUMBER = "AT+CMGS=\"+441233800093\""; // Twilio Phone Number
-//const char *END_MESSAGE_CHAR = char(26);
+#define CARRIAGE_RETURN     '\r'
+#define TEXT_MODE           "AT+CMGF=1"
+#define PHONE_NUMBER        "AT+CMGS=\"+441233800093\""     // Twilio Phone Number
 
 // Replies
-const char *OK = "OK";
-const char *ERROR = "ERROR";
-const char *NUMBER_OF_MESSAGES = "+CMGS:";
+#define OK                  "OK"
+#define ERROR               "ERROR"
+#define NUMBER_OF_MESSAGES  "+CMGS:"
 
 
 class SIM900
@@ -64,7 +79,7 @@ class SIM900
         boolean connectedToNetwork;
 
         // Text message vars
-        boolean textMessageBodyReady = false;
+        boolean textMessageBodyReady;
 
         // Message vars
         char rawMessage[MAX_SIM_MESSAGE_SIZE];  // Character array holding incoming bytes from module

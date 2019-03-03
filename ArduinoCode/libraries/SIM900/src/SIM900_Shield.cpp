@@ -1,4 +1,4 @@
-#include "SIM900.h"
+#include "SIM900_Shield.h"
 
 /**
  * Constructor
@@ -18,13 +18,14 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
     // Power and timing
     poweredOn = false;       // Starts turned off as Arduino pin is low
     powerOnMillis = -1;
+    lastNetworkCheck = 0;
     // Connectivity vars
     connectedToNetwork = false;
+    // Text message vars
+    textMessageBodyReady = false;
     // Message
     messageIndex = 0;
     messageReceived = false;
-    // Text message vars
-    textMessageBodyReady = false;
 }
 
 /**

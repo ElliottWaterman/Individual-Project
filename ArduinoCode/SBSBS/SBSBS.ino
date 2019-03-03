@@ -18,8 +18,8 @@
 #include <SimpleDHT.h>      //DHT22 library used to read from a DHT22 module
 #include <Q2HX711.h>        //HX711 library used to read weight sensor (amplifier + load cell)
 #include <RFID_Priority1Design.h> //RFID_P1D library used to read animal FBD-X tags
-#include <Fat16.h>          //SD library used to read and write to a FAT16 SD card module
-#include <SIM900.h>         //SIM900 library used to send SMS messages containing snake data
+#include <Fat16.h>                //SD library used to read and write to a FAT16 SD card module
+#include <SIM900_Shield.h>        //SIM900 library used to send SMS messages containing snake data
 
 
 /* DEFINES */
@@ -36,7 +36,7 @@ const byte PIN_RFID_RX =      8;  //Receiving pin on Arduino (use tx wire on boa
 const byte PIN_RFID_TX =      9;  //Transmitting pin on Arduino (use rx wire on board)
 
 const byte PIN_SD_SS =        A0; //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
-//const byte PIN_SPI =          11  // 12, 13 pins work
+//const byte PIN_SPI =          11;  // 12, 13 pins work
 const byte PIN_HX711_DATA =   A2; //Weight sensor data pin
 const byte PIN_HX711_CLOCK =  A3; //Weight sensor clock pin
 const byte PIN_RTC_SDA =      A4; //Connect RTC data to Arduino pin A4
