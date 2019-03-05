@@ -161,82 +161,8 @@ void setup() {
 
 /* LOOP */
 void loop() {
-  // Get time for this loop
-  //unsigned long currentMillis = millis();
-  //time_t currentEpoch = RTC.get();
-
-  // Check HX711 weight sensor for change in weight
-  HX711.update();
-
-  // If a weight has been detected turn on RFID module
-  if (HX711.getWeightDetected()) {
-    // Turn on RFID module, only executes if module is OFF
-    RFID.powerUp();
-  }
-
-  // Read tags or turn off module if elapsed time on, only runs if module is ON
-  RFID.update();
-
-  // Check if tag has been read
-  if (RFID.hasTagBeenRead()) {
-    // First tag that has been read since power up, must be a SNAKE tag
-    if (RFID.isFirstTagSincePowerUp()) {
-      // Collect and assign data to snake recordings
-      recordSnakeData();
-
-      // Reset reading the first RFID tag since power up
-      RFID.resetFirstTagSincePowerUp();
-    }
-    // Further tags have been read, probably a SKINKS tag
-    else {
-      // Save RFID tag to snake data array of tags
-      recordSkinkTags();
-    }
-
-    // TODO: Store on SD card, or make SnakeData an array with an index
-
-    // Reset RFID tag read
-    RFID.resetTagRead();
-  }
-
-  // RFID module turned off in update function and weight detect flag is still true
-  if (!RFID.getPowerStatus() && HX711.getWeightDetected()) {
-    // If a snake RFID has been read the index will be at least 1
-    if (SnakeData.rfidTagIndex != 0) {
-      // Throughout sensing time get the highest weight detected
-      SnakeData.weight = HX711.getHighestDetectedWeight();
-
-      // Reset highest detected weight
-      HX711.resetHighestDetectedWeight();
-
-      // Reset SnakeData struct
-      resetSnakeData();
-
-      // DEBUG print snake data
-      printRecordedData();
-
-      // Save snake recording to an SD card file
-      saveSnakeDataToSDCard();
-    }
-
-    // Reset weight detection
-    HX711.resetWeightDetected();
-  }
-
-  // Get any incoming SIM900 data
-  //readSIM900();
-
-  // PUESDO-code
-  // Check RTC alarm to sleep module for night time
-    // Check all power states / if snake is still present
-      // Set alarm for 1 hour later
-    // Else 
-      // Set alarm interrupt for morning
-      // Turn off other modules if necessary
-      // Sleep Arduino
-  
   // Check time is after 8:00pm
-  if (hour(RTC.get()) >= 20) {
+  if (hour(RTC.get()) >= 15 && minute(RTC.get()) >= 55) {
     // Power down other modules if needed
     //RFID.powerDown();
 
@@ -252,18 +178,35 @@ void loop() {
 
         // Parse SD file into text message body
         if (SIM.isTextMessageBodyReady()) {
+          Serial.println(F("Sending TXT"));
           // Send SMS message to Twilio backend server
           sendSnakeDataSMS();
+          Serial.println(F("Sent TXT"));
+
+          // Wait for text to send then turn off SIM900 module
+          while (!SIM.wasTextMessageSent()) {
+
+          }
+          // Power down SIM900 module as text has been sent
+          SIM.powerDown();
+
+          // Reset that text body message was ready
+          SIM.resetTextMessageBodyReady();
+          // Reset that text message was sent
+          SIM.resetTextMessageSent();
 
           // Reset snake data saved boolean
           snakeDataSavedToFile = false;
 
-          // On next loop function after this is set the arduino will sleep
+          // On the next loop after this, the arduino will sleep
         }
       }
     }
     // No snake data was saved so sleep for the night
     else {
+      // Check all modules are powered down
+      
+
       // Set morning awake alarm
       setMorningWakeupAlarm();
 
@@ -273,7 +216,61 @@ void loop() {
   }
   // Do normal processes
   else {
+    // Check HX711 weight sensor for change in weight
+    HX711.update();
 
+    // If a weight has been detected turn on RFID module
+    if (HX711.getWeightDetected()) {
+      // Turn on RFID module, only executes if module is OFF
+      RFID.powerUp();
+    }
+
+    // Read tags or turn off module if elapsed time on, only runs if module is ON
+    RFID.update();
+
+    // Check if tag has been read
+    if (RFID.hasTagBeenRead()) {
+      // First tag that has been read since power up, must be a SNAKE tag
+      if (RFID.isFirstTagSincePowerUp()) {
+        // Collect and assign data to snake recordings
+        recordSnakeData();
+
+        // Reset reading the first RFID tag since power up
+        RFID.resetFirstTagSincePowerUp();
+      }
+      // Further tags have been read, probably a SKINKS tag
+      else {
+        // Save RFID tag to snake data array of tags
+        recordSkinkTags();
+      }
+
+      // Reset RFID tag read
+      RFID.resetTagRead();
+    }
+
+    // RFID module turned off in update function and weight detect flag is still true
+    if (!RFID.getPowerStatus() && HX711.getWeightDetected()) {
+      // If a snake RFID has been read the index will be at least 1
+      if (SnakeData.rfidTagIndex != 0) {
+        // Throughout sensing time get the highest weight detected
+        SnakeData.weight = HX711.getHighestDetectedWeight();
+
+        // Reset highest detected weight
+        HX711.resetHighestDetectedWeight();
+
+        // Reset SnakeData struct
+        resetSnakeData();
+
+        // DEBUG print snake data
+        printRecordedData();
+
+        // Save snake recording to an SD card file
+        saveSnakeDataToSDCard();
+      }
+
+      // Reset weight detection
+      HX711.resetWeightDetected();
+    }
   }
 } // End loop
 
@@ -432,8 +429,8 @@ void createFileName(char* filename) {
 }
 
 /**
- * Function to open the SD card file for today (YYYYMMDD.csv) and write the
- * contents of the snake data struct to the file.
+ * Function to open the SD card file for today (YYYYMMDD.csv) and write 
+ * the contents of the snake data struct to the file.
  * Order saved: epoch, temp, hum, weight, rfid tags
  */
 void saveSnakeDataToSDCard() {

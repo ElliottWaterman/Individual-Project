@@ -23,6 +23,7 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
     connectedToNetwork = false;
     // Text message vars
     textMessageBodyReady = false;
+    textMessageSent = false;
     // Message
     messageIndex = 0;
     messageReceived = false;
@@ -53,7 +54,7 @@ void SIM900::update() {
                     sendATCommands(CARRIAGE_RETURN);
 
                     // Set phone number to send text to
-                    sendATCommands(PHONE_NUMBER);
+                    sendATCommands(TWILIO_PHONE_NUMBER);
                     sendATCommands(CARRIAGE_RETURN);
 
                     // Set flag ready for typing text message
@@ -66,6 +67,8 @@ void SIM900::update() {
                 if (currentMillis - lastNetworkCheck <= CHECK_NETWORK_MILLIS) {
                     // Send network registration check
                     sendATCommands(TEST_NETWORK_REGISTRATION);
+
+                    Serial.println(F("Testing network"));
 
                     // Update last checked millis
                     lastNetworkCheck = currentMillis;
@@ -121,9 +124,11 @@ void SIM900::read() {
             else if (strcmp(rawMessage, ERROR) == 0) {
                 Serial.println(F("Hit ERROR"));
             }
-            // Ignore reply of the number of text messages sent
-            else if (strncmp(rawMessage, NUMBER_OF_MESSAGES, 6) == 0) {
-
+            
+            // Always check for the number of text messages sent reply
+            if (strncmp(rawMessage, NUMBER_OF_MESSAGES, 6) == 0) {
+                textMessageSent = true;
+                Serial.println(F("TXT sent"));
             }
 
             // Always check for network connection status updates
@@ -158,6 +163,16 @@ boolean SIM900::getPowerStatus() {
 
 boolean SIM900::isTextMessageBodyReady() {
     return textMessageBodyReady;
+}
+void SIM900::resetTextMessageBodyReady() {
+    textMessageBodyReady = false;
+}
+
+boolean SIM900::wasTextMessageSent() {
+    return textMessageSent;
+}
+void SIM900::resetTextMessageSent() {
+    textMessageSent = false;
 }
 
 /**
