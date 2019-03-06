@@ -83,6 +83,8 @@ Fat16 storageFile;
 
 // Flag to determine if an SMS message of snake data should be sent
 boolean snakeDataSavedToFile = false;
+// Flag to determine if the commands to send an SMS message were sent
+boolean textMessageCommandsSent = false;
 
 
 /* STRUCTURES */
@@ -101,7 +103,7 @@ struct snakeData SnakeData;
 /* SETUP */
 void setup() {
   // Serial communications
-  Serial.begin(9600);
+  Serial.begin(19200);
   Serial.println(F("S B."));
 
   // Start software serial communication with SIM and RFID modules
@@ -156,13 +158,15 @@ void setup() {
   //digitalWrite(LED_BUILTIN, HIGH);    // Turn built-in LED on
 
   Serial.println(F("S C."));
+
+  snakeDataSavedToFile = true;
 }
 
 
 /* LOOP */
 void loop() {
   // Check time is after 8:00pm
-  if (hour(RTC.get()) >= 15 && minute(RTC.get()) >= 55) {
+  if (hour(RTC.get()) >= 14 && minute(RTC.get()) >= 5) {
     // Power down other modules if needed
     //RFID.powerDown();
 
@@ -177,31 +181,37 @@ void loop() {
         SIM.update();
 
         // Parse SD file into text message body
-        if (SIM.isTextMessageBodyReady()) {
+        if (SIM.isTextMessageBodyReady() && !textMessageCommandsSent) {
           Serial.println(F("Sending TXT"));
           // Send SMS message to Twilio backend server
           sendSnakeDataSMS();
           Serial.println(F("Sent TXT"));
 
-          // Wait for text to send then turn off SIM900 module
-          while (!SIM.wasTextMessageSent()) {
-
-          }
-          // Power down SIM900 module as text has been sent
-          SIM.powerDown();
-
-          // Reset that text body message was ready
-          SIM.resetTextMessageBodyReady();
-          // Reset that text message was sent
-          SIM.resetTextMessageSent();
-
-          // Reset snake data saved boolean
-          snakeDataSavedToFile = false;
-
-          // On the next loop after this, the arduino will sleep
+          // Set that the commands to send a text message were sent
+          textMessageCommandsSent = true;
         }
-      }
-    }
+        
+        // Check text message was sent by the SIM900 module
+        if (textMessageCommandsSent) {
+          if (SIM.wasTextMessageSent()) {
+            // Reset that text body message was ready
+            SIM.resetTextMessageBodyReady();
+
+            // Reset that a text message was sent
+            SIM.resetTextMessageSent();
+
+            // Power down SIM900 module as text has been sent
+            SIM.powerDown();
+
+            // Reset that commands to send a text message was sent
+            textMessageCommandsSent = false;
+
+            // Reset snake data saved boolean
+            snakeDataSavedToFile = false;   // On the next loop after this, the arduino will sleep
+          }
+        } // End if textMessageCommandsSent
+      }   // End if SIM.getPowerStatus()
+    }     // End if snakeDataSavedToFile
     // No snake data was saved so sleep for the night
     else {
       // Check all modules are powered down
@@ -258,14 +268,14 @@ void loop() {
         // Reset highest detected weight
         HX711.resetHighestDetectedWeight();
 
-        // Reset SnakeData struct
-        resetSnakeData();
-
         // DEBUG print snake data
         printRecordedData();
 
         // Save snake recording to an SD card file
         saveSnakeDataToSDCard();
+
+        // Reset SnakeData struct
+        resetSnakeData();
       }
 
       // Reset weight detection
@@ -295,13 +305,16 @@ void sendSnakeDataSMS() {
       // DEBUG print to console the "text message"
       Serial.print((char)c);
     }
-    // Send end of message character
+    // Send end of message character and carriage return
     SIM.sendATCommands(char(26));
+    SIM.sendATCommands('\r');
 
     Serial.println(F("Sent TXT Msg."));
     
     // Close the file
-    storageFile.close();
+    if (!storageFile.close()) {
+      Serial.print(F("SD close file error"));
+    }
   }
   else {
     // If the file didn't open, print an error
@@ -314,6 +327,7 @@ void sendSnakeDataSMS() {
  * Function to reset SnakeData struct variables to 0.
  */
 void resetSnakeData() {
+  Serial.println(F("Reseting Snake Data!"));
   SnakeData.epochTime = 0;
   for (int i = 0; i < MAX_RFID_TAGS; i++) {
     SnakeData.rfidTag[i] = "";
@@ -362,14 +376,13 @@ void recordSnakeData() {
  */
 void recordSkinkTags() {
   boolean sameTag = false;
-  String rfidTagToRecord = RFID.getMessage();
 
   Serial << F("Recording skink tag") << endl;
 
   // Check that existing tags are not saved more than once
   for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
     // If a recorded tag equals the tag to save
-    if (SnakeData.rfidTag[index].equals(rfidTagToRecord)) {
+    if (SnakeData.rfidTag[index].equals(RFID.getMessage())) {
       // Exit function without saving
       Serial << F("Same tag read: ") << RFID.getMessage() << endl;
       sameTag = true;
@@ -450,11 +463,15 @@ void saveSnakeDataToSDCard() {
 
     char COMMA = ',';
 
-    // Print epoch time and temperature to file
-    storageFile.print(String(SnakeData.epochTime) + COMMA + String(SnakeData.temperature) + COMMA);
-
-    // Print humidity and weight to file
-    storageFile.print(String(SnakeData.humidity) + COMMA + String(SnakeData.weight) + COMMA);
+    // Print time. temperature, humidity, weight
+    storageFile.print(SnakeData.epochTime);
+    storageFile.print(COMMA);
+    storageFile.print(SnakeData.temperature);
+    storageFile.print(COMMA);
+    storageFile.print(SnakeData.humidity);
+    storageFile.print(COMMA);
+    storageFile.print(SnakeData.weight);
+    storageFile.print(COMMA);
 
     // Print each RFID tag read to file
     for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
@@ -500,7 +517,9 @@ void saveSnakeDataToSDCard() {
     Serial.println();
     
     // Close the file
-    storageFile.close();
+    if (!storageFile.close()) {
+      Serial.print(F("SD close file error"));
+    }
   }
   else {
     // If the file didn't open, print an error

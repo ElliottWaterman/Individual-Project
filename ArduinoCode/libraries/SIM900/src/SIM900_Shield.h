@@ -8,25 +8,27 @@
 /* CONSTANTS */
 const byte MAX_SIM_MESSAGE_SIZE = 30;               // Size of receiving messages buffer
 const unsigned long SIM_POWER_ON_MILLIS = 300000;   // Number of milliseconds to stay powered on (5 minutes)
-const unsigned long CHECK_NETWORK_MILLIS = 10000;   // Number of milliseconds between checking network registration status
+const unsigned long CHECK_NETWORK_MILLIS = 15000;   // Number of milliseconds between checking network registration status
 
 
 /* DEFINES */
 #define CARRIAGE_RETURN             '\r'
 
 // Connectivity commands
-#define TEST_NETWORK_REGISTRATION   "AT+CREG?"
+#define ENABLE_NETWORK_REGISTRATION     "AT+CREG=1"
+#define TEST_NETWORK_REGISTRATION       "AT+CREG?"
 
 // Text message commands
-#define TEXT_MODE                   "AT+CMGF=1"
-#define TWILIO_PHONE_NUMBER         "AT+CMGS=\"+441233800093\""
+#define TEXT_MODE                       "AT+CMGF=1"
+#define TWILIO_PHONE_NUMBER             "AT+CMGS=\"+441233800093\""
 
 // Replies
-#define OK                          "OK"
-#define ERROR                       "ERROR"
-#define NUMBER_OF_MESSAGES          "+CMGS:"
-#define HOME_NETWORK_REGISTERED     "+CREG: 1"
-#define ROAMING_NETWORK_REGISTERED  "+CREG: 5"
+#define OK                              "OK"
+#define ERROR                           "ERROR"
+#define NUMBER_OF_MESSAGES              "+CMGS:"
+#define UNSOLICITED_NETWORK_REGISTERED  "+CREG: 1"
+#define HOME_NETWORK_REGISTERED         "+CREG: 1,1"
+#define ROAMING_NETWORK_REGISTERED      "+CREG: 1,5"
 
 
 class SIM900

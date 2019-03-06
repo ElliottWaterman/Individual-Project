@@ -23,6 +23,10 @@ public class ReportGenerator {
 	 * Constant to define a table column close tag in HTML.
 	 */
 	private static final String TABLE_COLUMN_CLOSE = "</td>";
+	/**
+	 * Separator for a comma separator value.
+	 */
+	private static final String CSV_SEPARATOR = ",";
 	
 	/**
 	 * Function to generate an HTML string containing data from arduino in 
@@ -68,9 +72,16 @@ public class ReportGenerator {
     	
     	// Create table which is converted into a responsive table using Tabulator
     	// Add table header and tbody open tag
-    	HTMLReport.append("<table id=\"report-table\"><thead><tr><th min-width=\"250\">ID</th><th>Phone Number</th>" +
-    					  "<th>Time</th><th>RFID</th><th tabulator-align=\"center\">Temperature</th>" +
-    					  "<th tabulator-align=\"center\">Weight</th></tr></thead><tbody>");
+    	HTMLReport.append("<table id=\"report-table\"><thead><tr>" +
+    					  "<th min-width=\"250\">ID</th>" + 
+    					  "<th>Phone Number</th>" +
+    					  "<th>Time</th>" + 
+    					  "<th tabulator-align=\"center\">Temperature</th>" +
+    					  "<th tabulator-align=\"center\">Humidity</th>" +
+    					  "<th tabulator-align=\"center\">Weight</th>" +
+    					  "<th>Snake RFID</th>" +
+    					  "<th>Skink RFIDs</th>" +
+    					  "</tr></thead><tbody>");
     	
 		// Put each message data into an HTML column
 		for (ArduinoMessage message : listOfMessages) {
@@ -85,13 +96,26 @@ public class ReportGenerator {
 					HTMLReport.append(message.getEpochMillis());
 				HTMLReport.append(TABLE_COLUMN_CLOSE);
 				HTMLReport.append(TABLE_COLUMN_OPEN);
-					HTMLReport.append(message.getRFID());
-				HTMLReport.append(TABLE_COLUMN_CLOSE);
-				HTMLReport.append(TABLE_COLUMN_OPEN);
 					HTMLReport.append(message.getTemperature());
 				HTMLReport.append(TABLE_COLUMN_CLOSE);
 				HTMLReport.append(TABLE_COLUMN_OPEN);
+					HTMLReport.append(message.getHumidity());
+				HTMLReport.append(TABLE_COLUMN_CLOSE);
+				HTMLReport.append(TABLE_COLUMN_OPEN);
 					HTMLReport.append(message.getWeight());
+				HTMLReport.append(TABLE_COLUMN_CLOSE);
+				HTMLReport.append(TABLE_COLUMN_OPEN);
+					HTMLReport.append(message.getSnakeRFID());
+				HTMLReport.append(TABLE_COLUMN_CLOSE);
+				HTMLReport.append(TABLE_COLUMN_OPEN);
+					// Print each Skink tag with commas
+					for (int index = 0; index < message.getSkinkRFIDs().size(); index++) {
+						HTMLReport.append(message.getSkinkRFIDs().get(index));
+						// Print comma until last tag printed
+						if (index < (message.getSkinkRFIDs().size() - 1)) {
+							HTMLReport.append(CSV_SEPARATOR);
+						}
+					}
 				HTMLReport.append(TABLE_COLUMN_CLOSE);
 			HTMLReport.append(TABLE_ROW_CLOSE);
 		}

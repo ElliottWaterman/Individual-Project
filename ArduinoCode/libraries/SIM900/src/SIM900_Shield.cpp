@@ -8,7 +8,10 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
     SIM = simSerial;
 
     // Start communication
-    SIM->begin(9600);
+    SIM->begin(19200);
+    if (SIM->listen()) {
+        Serial.println(F("Cannot listen SIM"));
+    }
     SIM->listen();
 
     // Set power control pin on Arduino
@@ -46,16 +49,25 @@ void SIM900::update() {
 
         // Module is ON so update process
         if (currentMillis - powerOnMillis <= SIM_POWER_ON_MILLIS) {
+            // Always read for a reply
+            read();
+            
             // Check module is connected to the network
             if (connectedToNetwork) {
                 if (!textMessageBodyReady) {
                     // Setup text mode on the module
                     sendATCommands(TEXT_MODE);
                     sendATCommands(CARRIAGE_RETURN);
+                    Serial.println(F("Text mode sent"));
+
+                    delay(2000);
 
                     // Set phone number to send text to
                     sendATCommands(TWILIO_PHONE_NUMBER);
                     sendATCommands(CARRIAGE_RETURN);
+                    Serial.println(F("Twilio phone number sent"));
+
+                    delay(2000);
 
                     // Set flag ready for typing text message
                     textMessageBodyReady = true;
@@ -64,9 +76,14 @@ void SIM900::update() {
             // Send commands to test network registration
             else {
                 // Test every 10 seconds for network registration 
-                if (currentMillis - lastNetworkCheck <= CHECK_NETWORK_MILLIS) {
+                if (currentMillis - lastNetworkCheck > CHECK_NETWORK_MILLIS) {
+                    // Enable network registration
+                    // sendATCommands(ENABLE_NETWORK_REGISTRATION);
+                    // sendATCommands(CARRIAGE_RETURN);
+                    
                     // Send network registration check
                     sendATCommands(TEST_NETWORK_REGISTRATION);
+                    sendATCommands(CARRIAGE_RETURN);
 
                     Serial.println(F("Testing network"));
 
@@ -74,9 +91,6 @@ void SIM900::update() {
                     lastNetworkCheck = currentMillis;
                 }
             }
-
-            // Always read for a reply
-            read();
         }
         // Module has elapsed power on time so turn OFF
         else if (currentMillis - powerOnMillis > SIM_POWER_ON_MILLIS) {
@@ -94,8 +108,9 @@ void SIM900::update() {
  */
 void SIM900::read() {
     // Listen to serial port for SIM communication
-    if (SIM->listen()) {
-        Serial.println(F("Cannot listen to SIM!"));
+    SIM->listen();
+    if (!SIM->isListening()) {
+        Serial.println(F("Not listening to SIM!"));
     }
 
     while (SIM->available() && messageIndex < (MAX_SIM_MESSAGE_SIZE - 1)) {
@@ -134,11 +149,15 @@ void SIM900::read() {
             // Always check for network connection status updates
             if (strcmp(rawMessage, HOME_NETWORK_REGISTERED) == 0) {
                 connectedToNetwork = true;
-                Serial.println(F("Connected to network"));
+                Serial.println(F("Connected to network home"));
             }
             else if (strcmp(rawMessage, ROAMING_NETWORK_REGISTERED) == 0) {
                 connectedToNetwork = true;
                 Serial.println(F("Connected to network roaming"));
+            }
+            else if (strcmp(rawMessage, UNSOLICITED_NETWORK_REGISTERED) == 0) {
+                connectedToNetwork = true;
+                Serial.println(F("Connected to network unsolicited"));
             }
         }
     }

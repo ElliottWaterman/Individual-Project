@@ -1,10 +1,13 @@
 #include <SoftwareSerial.h>
+#include <SIM900_Shield.h>
 
 // RX on Arduino (use tx wire on board)
 // TX on Arduino (use rx wire on board)
 // Use Carriage return and 9600 baud
 SoftwareSerial SIM900(6, 7);
 
+// SoftwareSerial SIM900_Serial(6, 7); //Create soft serial to pass to SIM900 class
+// SIM900 SIM(&SIM900_Serial, PIN_SIM900_POWER);                              //Controls the SIM900 module
 
 // Defines and Constants
 #define BUFFER_SIZE (256)
@@ -67,7 +70,10 @@ void loop() {
 }
 
 void quickCommands() {
-    SIM900.println("AT+CMGS=\"+NUMBER_HERE\"");
-    SIM900.println("Quick message test");
-    SIM900.println(char(26));
+    SIM900.print("AT+CMGS=\"+441233800093\"");  // Twilio phone number
+    SIM900.print('\r');
+    SIM900.print("Quick message test");
+    SIM900.print('\r');
+    SIM900.print(char(26));
+    SIM900.print('\r');
 }

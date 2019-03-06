@@ -43,9 +43,12 @@ void Q2HX711::update() {
       weightDetected = true;
 
       // Increase polling interval if weight detected (up to 10Hz or 80Hz)
-      millisInterval = FAST_WEIGHT_POLLING;   // 0.1s
+      if (millisInterval == INITIAL_WEIGHT_POLLING) {
+        millisInterval = FAST_WEIGHT_POLLING;   // 0.1s
+      }
 
-      Serial << "Weight change detected: " << weightDifference << " or " << (weightDifference/SCALE_FACTOR) << endl;
+      Serial << F("Weight change detected") << endl;
+      //Serial << "Weight change detected: " << weightDifference << " or " << (weightDifference/SCALE_FACTOR) << endl;
     }
     else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
       // Weight is decreasing.. TODO?
@@ -59,10 +62,11 @@ void Q2HX711::update() {
 
     // Set new highest detected weight and new lowest from array
     if (weightDetected && highestDetectedWeight < currentWeight) {
-      Serial << "Weight: " << highestDetectedWeight << " < " << currentWeight << " : ";
-      Serial << (highestDetectedWeight < currentWeight ? "true" : "false") << " or ";
-      Serial << normaliseLongToWeight(currentWeight) << " replacing " << normaliseLongToWeight(highestDetectedWeight) << endl;
+      // Serial << "Weight: " << highestDetectedWeight << " < " << currentWeight << " : ";
+      // Serial << (highestDetectedWeight < currentWeight ? "true" : "false") << " or ";
+      // Serial << normaliseLongToWeight(currentWeight) << " replacing " << normaliseLongToWeight(highestDetectedWeight) << endl;
 
+      Serial << F("HWD: ") << normaliseLongToWeight(currentWeight) << endl;
       highestDetectedWeight = currentWeight;
     }
 	} // End regular time update

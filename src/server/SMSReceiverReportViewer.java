@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,44 +158,58 @@ public class SMSReceiverReportViewer {
             System.out.println("From Phone Number: " + fromPhoneNumber);
             System.out.println("Message Body: " + bodyText);
             
-            // Create complete CSV line of data
-            StringBuilder CSVLine = new StringBuilder();
-            CSVLine.append(messageSid);
-            CSVLine.append(CSV_SEPARATOR);
-            CSVLine.append(fromPhoneNumber);
-            CSVLine.append(CSV_SEPARATOR);
-            CSVLine.append(bodyText);
-            
-            // Parse map of message parameters to Arduino Message class object
-            ArduinoMessage message = new ArduinoMessage(CSVLine.toString());
-            System.out.println(message.getMessageSid());
-            System.out.println(message.getPhoneNumber());
-            System.out.println(message.getEpochMillis());
-            System.out.println(message.getRFID());
-            System.out.println(message.getTemperature());
-            System.out.println(message.getWeight());
-            
-            // Store to CSV storage file
-            try {
-            	// Check storage file exists, can be read, can be written to
-            	if (!checkStorageFile()) {
-    				return NO_MESSAGE_REPLY;
-    			}
-            	// Append message to storage file
-            	boolean fileSaved = appendCSVFile(message);
-            	if (fileSaved) {
-            		System.out.println("Arduino Message saved to storage file.");
-                	System.out.println(STORAGE_FILE.getAbsolutePath());
-                	System.out.println("");
-            	} else {
-            		System.out.println("Arduino Message could NOT be saved.");
-            		System.out.println("");
-            	}
-            } catch (IOException ioXcp) {
-            	// TODO: clean exit
-            	ioXcp.printStackTrace();
-            	return NO_MESSAGE_REPLY;
-            }
+            // Multiple readings in one message
+            // Split body text up into separate readings by carriage return and/or new line
+			ArrayList<String> bodyTextReadings = new ArrayList<String>(Arrays.asList(bodyText.split(System.lineSeparator())));
+			
+			for (String CSVMessage : bodyTextReadings) {
+				// Trim carriage return and new line from start and end of string
+				CSVMessage = CSVMessage.trim();
+				
+				// Create complete CSV line of data
+				StringBuilder CSVLine = new StringBuilder();
+				CSVLine.append(messageSid);
+				CSVLine.append(CSV_SEPARATOR);
+				CSVLine.append(fromPhoneNumber);
+				CSVLine.append(CSV_SEPARATOR);
+				CSVLine.append(CSVMessage);
+				
+				// Parse map of message parameters to Arduino Message class object
+				ArduinoMessage message = new ArduinoMessage(CSVLine.toString());
+				System.out.println(message.getMessageSid());
+				System.out.println(message.getPhoneNumber());
+				System.out.println(message.getEpochMillis());
+				System.out.println(message.getTemperature());
+				System.out.println(message.getHumidity());
+				System.out.println(message.getWeight());
+				System.out.println(message.getSnakeRFID());
+				for (String skinkRFID : message.getSkinkRFIDs()) {
+					System.out.println(skinkRFID);
+				}
+				
+				// Store to CSV storage file
+				try {
+					// Check storage file exists, can be read, can be written to
+					if (!checkStorageFile()) {
+						return NO_MESSAGE_REPLY;
+					}
+					// Append message to storage file
+					boolean fileSaved = appendCSVFile(message);
+					if (fileSaved) {
+						System.out.println("Arduino Message saved to storage file.");
+						System.out.println(STORAGE_FILE.getAbsolutePath());
+						System.out.println("");
+					} else {
+						System.out.println("Arduino Message could NOT be saved.");
+						System.out.println("");
+					}
+				} catch (IOException ioXcp) {
+					// TODO: clean exit
+					System.out.println("File writer error.");
+					ioXcp.printStackTrace();
+					return NO_MESSAGE_REPLY;
+				}
+			}	// End for each body text reading
             
             return NO_MESSAGE_REPLY;
         });
@@ -247,9 +262,11 @@ public class SMSReceiverReportViewer {
      */
     private static boolean appendCSVFile(ArduinoMessage message) throws IOException {
     	if (message == null) {
+    		System.out.println("Arduino message was null.");
     		return false;
     	}
     	if (!message.checkDataExists()) {
+    		System.out.println("Arduino message data is null or outside bounds.");
     		return false;
     	}
     	

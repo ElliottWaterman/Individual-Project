@@ -1,5 +1,7 @@
 package server;
 
+import java.util.ArrayList;
+
 /**
  * Class to define the structure of a text message sent from the
  * Arduino / SIM900 module that contains sensor data.
@@ -7,7 +9,7 @@ package server;
  */
 public class ArduinoMessage {
 	/**
-	 * The number of identity parameters in an arduino message.
+	 * The number of identity parameters in an Arduino message.
 	 */
 	private static final int NUMBER_OF_PARAMETERS = 2;
 	/**
@@ -23,6 +25,14 @@ public class ArduinoMessage {
 	 */
 	private static final int MIN_TEMPERATURE = -10;
 	/**
+	 * Maximum humidity before reading or value is incorrect (Sensor highest 100%).
+	 */
+	private static final int MAX_HUMIDITY = 100;
+	/**
+	 * Minimum humidity before reading or value is incorrect (Sensor lowest 0%).
+	 */
+	private static final int MIN_HUMIDITY = 0;
+	/**
 	 * Separator for a comma separator value.
 	 */
 	private static final String CSV_SEPARATOR = ",";
@@ -30,9 +40,11 @@ public class ArduinoMessage {
 	private String messageSid;
 	private String phoneNumber;
 	private Long epochMillis;
-	private String RFID;
 	private Float temperature;
+	private Float humidity;
 	private Float weight;
+	private String snakeRFID;
+	private ArrayList<String> skinkRFIDs;
 	
 	/**
 	 * Constructor to parse a CSV line from either an incoming text message or the storage file.
@@ -42,9 +54,11 @@ public class ArduinoMessage {
 		this.messageSid = null;
 		this.phoneNumber = null;
 		this.epochMillis = null;
-		this.RFID = null;
 		this.temperature = null;
+		this.humidity = null;
 		this.weight = null;
+		this.snakeRFID = null;
+		this.skinkRFIDs = new ArrayList<String>();
 		
 		// Parse CSV text into variable values
 		this.parseCSVText(CSVString);
@@ -58,18 +72,28 @@ public class ArduinoMessage {
 		// Check string is not null
 		if (CSVText != null) {
 			// Check string is a CSV line
-			if (CSVText.contains(",")) {
+			if (CSVText.contains(CSV_SEPARATOR)) {
 				// Split CSV data by comma
-				String CSVParameters[] = CSVText.split(",");
-				// Check number of parameters and sensor readings match the defined amount
-				if (CSVParameters.length == (NUMBER_OF_PARAMETERS + NUMBER_OF_SENSOR_READINGS)) {
-					// Parse each string and assign parameter and sensor readings to variables  
+				String CSVParameters[] = CSVText.split(CSV_SEPARATOR);
+				// Check number of parameters and sensor readings match or is greater than the defined amount
+				if (CSVParameters.length >= (NUMBER_OF_PARAMETERS + NUMBER_OF_SENSOR_READINGS)) {
+					// Parse each string to primitive types
+					// Twilio information
 					this.messageSid = CSVParameters[0];
 					this.phoneNumber = CSVParameters[1];
+					
+					// SBSBS information
 					this.epochMillis = convertStringToLong(CSVParameters[2]);
-					this.RFID = CSVParameters[3];
-					this.temperature = convertStringToFloat(CSVParameters[4]);
+					this.temperature = convertStringToFloat(CSVParameters[3]);
+					this.humidity = convertStringToFloat(CSVParameters[4]);
 					this.weight = convertStringToFloat(CSVParameters[5]);
+					this.snakeRFID = CSVParameters[6];
+					// Add each Skink tag to an array list
+					if (CSVParameters.length >= (1 + NUMBER_OF_PARAMETERS + NUMBER_OF_SENSOR_READINGS)) {
+						for (int i = 7; i < CSVParameters.length; i++) {
+							this.skinkRFIDs.add(CSVParameters[i]);
+						}						
+					}
 				}
 			}
 		}
@@ -92,9 +116,6 @@ public class ArduinoMessage {
 		else if (this.epochMillis.longValue() <= 0) {
 			return false;
 		}
-		if (this.RFID == null) {
-			return false;
-		}
 		if (this.temperature == null) {
 			return false;
 		}
@@ -102,10 +123,23 @@ public class ArduinoMessage {
 				 (this.temperature.floatValue() > MAX_TEMPERATURE)) {
 			return false;
 		}
+		if (this.humidity == null) {
+			return false;
+		}
+		else if ((this.humidity.floatValue() < MIN_HUMIDITY) || 
+				 (this.humidity.floatValue() > MAX_HUMIDITY)) {
+			return false;
+		}
 		if (this.weight == null) {
 			return false;
 		}
 		else if (this.weight.floatValue() < 0) {
+			return false;
+		}
+		if (this.snakeRFID == null) {
+			return false;
+		}
+		if (this.skinkRFIDs == null) {
 			return false;
 		}
 		
@@ -125,26 +159,36 @@ public class ArduinoMessage {
 		CSVString.append(CSV_SEPARATOR);
 		CSVString.append(this.epochMillis.longValue());
 		CSVString.append(CSV_SEPARATOR);
-		CSVString.append(this.RFID);
-		CSVString.append(CSV_SEPARATOR);
 		CSVString.append(this.temperature.floatValue());
 		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.humidity.floatValue());
+		CSVString.append(CSV_SEPARATOR);
 		CSVString.append(this.weight.floatValue());
+		CSVString.append(CSV_SEPARATOR);
+		CSVString.append(this.snakeRFID);
+		CSVString.append(CSV_SEPARATOR);
+		for (int index = 0; index < this.skinkRFIDs.size(); index++) {
+			CSVString.append(this.skinkRFIDs.get(index));
+			// Print comma until last tag printed
+			if (index < (this.skinkRFIDs.size() - 1)) {
+				CSVString.append(CSV_SEPARATOR);
+			}
+		}
 		
 		return CSVString.toString(); 
 	}
 	
 	/**
 	 * Getter function to return the message Sid.
-	 * @return The message Sid.
+	 * @return The Sid of the message.
 	 */
 	public String getMessageSid() {
 		return messageSid;
 	}
 	
 	/**
-	 * Setter function to assign message Sid.
-	 * @param messageSid Sid of the message.
+	 * Setter function to assign the message Sid.
+	 * @param messageSid The Sid of the message.
 	 */
 	public void setMessageSid(String messageSid) {
 		this.messageSid = messageSid;
@@ -167,40 +211,26 @@ public class ArduinoMessage {
 	}
 	
 	/**
-	 * Getter function to return epoch milliseconds.
-	 * @return Milliseconds since the epoch.
+	 * Getter function to return the epoch milliseconds when the 
+	 * snake RFID tag was read.
+	 * @return The milliseconds since the epoch.
 	 */
 	public Long getEpochMillis() {
 		return epochMillis;
 	}
 	
 	/**
-	 * Setter function to assign epoch milliseconds.
-	 * @param epochMillis Milliseconds since the epoch.
+	 * Setter function to assign the epoch milliseconds when the 
+	 * snake RFID tag was read.
+	 * @param epochMillis The milliseconds since the epoch.
 	 */
 	public void setEpochMillis(Long epochMillis) {
 		this.epochMillis = epochMillis;
 	}
 	
 	/**
-	 * Getter function to return RFID.
-	 * @return Identification of Radio Frequency.
-	 */
-	public String getRFID() {
-		return RFID;
-	}
-	
-	/**
-	 * Setter function to assign the RFID.
-	 * @param RFID Identification of Radio Frequency.
-	 */
-	public void setRFID(String RFID) {
-		this.RFID = RFID;
-	}
-	
-	/**
-	 * Getter function to return RFID.
-	 * @return Identification of Radio Frequency.
+	 * Getter function to return the temperature.
+	 * @return The temperature taken when the snake RFID was read.
 	 */
 	public Float getTemperature() {
 		return temperature;
@@ -208,26 +238,74 @@ public class ArduinoMessage {
 	
 	/**
 	 * Setter function to assign the temperature.
-	 * @param temperature The temperature in degrees celsius.
+	 * @param temperature The temperature in degrees Celsius.
 	 */
 	public void setTemperature(Float temperature) {
 		this.temperature = temperature;
 	}
 	
 	/**
-	 * Getter function to return the weight.
-	 * @return The measured weight of a snake.
+	 * Getter function to return the humidity.
+	 * @return The humidity taken when the snake RFID was read.
+	 */
+	public Float getHumidity() {
+		return humidity;
+	}
+	
+	/**
+	 * Setter function to assign the humidity.
+	 * @param humidity The relative humidity as a percentage.
+	 */
+	public void setHumidity(Float humidity) {
+		this.humidity = humidity;
+	}
+	
+	/**
+	 * Getter function to return the weight of the snake.
+	 * @return The measured weight of the snake in grams.
 	 */
 	public Float getWeight() {
 		return weight;
 	}
 	
 	/**
-	 * Setter function to assign the weight.
-	 * @param weight The weight in grams (or kilograms).
+	 * Setter function to assign the weight of the snake.
+	 * @param weight The weight of the snake in grams.
 	 */
 	public void setWeight(Float weight) {
 		this.weight = weight;
+	}
+	
+	/**
+	 * Getter function to return the snake RFID.
+	 * @return String of the snake RFID tag.
+	 */
+	public String getSnakeRFID() {
+		return snakeRFID;
+	}
+	
+	/**
+	 * Setter function to assign the snake RFID tag.
+	 * @param snakeRFID The snake RFID tag to set.
+	 */
+	public void setSnakeRFID(String snakeRFID) {
+		this.snakeRFID = snakeRFID;
+	}
+	
+	/**
+	 * Getter function to return an array list of Skink RFID tags.
+	 * @return Array list of Skink RFID tags.
+	 */
+	public ArrayList<String> getSkinkRFIDs() {
+		return skinkRFIDs;
+	}
+	
+	/**
+	 * Setter function to assign the RFID tags of Skinks.
+	 * @param skinkRFIDs The array list of Skink RFID tags to set.
+	 */
+	public void setRFID(ArrayList<String> skinkRFIDs) {
+		this.skinkRFIDs = skinkRFIDs;
 	}
 	
 	/**
@@ -240,7 +318,7 @@ public class ArduinoMessage {
 		try {
 			convertedReading = Long.parseLong(reading);
 		} catch (NumberFormatException nfe) {
-			
+			nfe.printStackTrace();
 		}
 		return convertedReading;
 	}
@@ -255,7 +333,7 @@ public class ArduinoMessage {
 		try {
 			convertedReading = Float.parseFloat(reading);
 		} catch (NumberFormatException nfe) {
-			
+			nfe.printStackTrace();
 		}
 		return convertedReading;
 	}
