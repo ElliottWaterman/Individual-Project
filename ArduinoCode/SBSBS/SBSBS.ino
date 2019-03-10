@@ -83,14 +83,12 @@ Fat16 storageFile;
 
 // Flag to determine if an SMS message of snake data should be sent
 boolean snakeDataSavedToFile = false;
-// Flag to determine if the commands to send an SMS message were sent
-boolean textMessageCommandsSent = false;
 
 
 /* STRUCTURES */
 struct snakeData {
   time_t epochTime;
-  String rfidTag[MAX_RFID_TAGS];    // If less space could use char[34][MAX_RFID_TAGS]
+  String rfidTag[MAX_RFID_TAGS];    // If less space could use char[17][MAX_RFID_TAGS] or char * [MAX_RFID_TAGS]
   byte rfidTagIndex = 0;
   float temperature;
   float humidity;
@@ -105,9 +103,6 @@ void setup() {
   // Serial communications
   Serial.begin(19200);
   Serial.println(F("S B."));
-
-  // Start software serial communication with SIM and RFID modules
-  //SIM900.begin(9600);
 
   // Initialise weight sensor
   HX711.startSensorSetup();
@@ -166,7 +161,7 @@ void setup() {
 /* LOOP */
 void loop() {
   // Check time is after 8:00pm
-  if (hour(RTC.get()) >= 14 && minute(RTC.get()) >= 5) {
+  if (hour(RTC.get()) >= 11 && minute(RTC.get()) >= 1) {
     // Power down other modules if needed
     //RFID.powerDown();
 
@@ -180,36 +175,17 @@ void loop() {
         // Update SIM900 module
         SIM.update();
 
-        // Parse SD file into text message body
-        if (SIM.isTextMessageBodyReady() && !textMessageCommandsSent) {
-          Serial.println(F("Sending TXT"));
-          // Send SMS message to Twilio backend server
+        // Once connected to the network
+        if (SIM.isConnectedToNetwork()) {
+          // Send a text message for each line in the file
           sendSnakeDataSMS();
-          Serial.println(F("Sent TXT"));
 
-          // Set that the commands to send a text message were sent
-          textMessageCommandsSent = true;
-        }
-        
-        // Check text message was sent by the SIM900 module
-        if (textMessageCommandsSent) {
-          if (SIM.wasTextMessageSent()) {
-            // Reset that text body message was ready
-            SIM.resetTextMessageBodyReady();
+          // Resets member variables
+          SIM.powerDown();
 
-            // Reset that a text message was sent
-            SIM.resetTextMessageSent();
-
-            // Power down SIM900 module as text has been sent
-            SIM.powerDown();
-
-            // Reset that commands to send a text message was sent
-            textMessageCommandsSent = false;
-
-            // Reset snake data saved boolean
-            snakeDataSavedToFile = false;   // On the next loop after this, the arduino will sleep
-          }
-        } // End if textMessageCommandsSent
+          // Reset snake data saved boolean
+          snakeDataSavedToFile = false;   // On the next loop after this, the arduino will sleep
+        } // End if SIM.isConnectedToNetwork()
       }   // End if SIM.getPowerStatus()
     }     // End if snakeDataSavedToFile
     // No snake data was saved so sleep for the night
@@ -296,29 +272,80 @@ void sendSnakeDataSMS() {
 
   // Opening the file for reading and writing content to SIM900 module
   if (storageFile.open(filename, O_READ)) {
+    // Send phone number to start text message
+    // Reset that the body of the text message is ready for writing
+    SIM.resetReadyForEnteringText();
+
+    // Send command for setting the phone number
+    SIM.sendTwilioPhoneNumber();
+
+    do {
+      SIM.update();
+    } while (!SIM.isReadyForEnteringText());
+    Serial.println(F("Enter text now: "));
+
     // Read from the file until there's nothing else in it
     int16_t c;
     while ((c = storageFile.read()) > 0) {
-      // Print each character to text message body
-      SIM.sendATCommands((char)c);
+      // An end of line was found
+      if (c == '\r' || c == '\n') {
+        Serial.println();
+        Serial.println(F("End of line, sending text..."));
 
-      // DEBUG print to console the "text message"
-      Serial.print((char)c);
+        // Finish text message and send
+        SIM.sendEndOfTextMessage();
+        Serial.println(F("Sent EOTM"));
+        Serial.println(SIM.wasTextMessageSent());
+        Serial.println(SIM.isReadyForEnteringText());
+
+        // for (int i = 0; i < 5; i ++) {
+        //   SIM.update();
+        // }
+
+        do {
+          SIM.update();
+        } while (!SIM.wasTextMessageSent());
+        Serial.println(F("Text sent."));
+
+        // Reset that a text message was sent
+        SIM.resetTextMessageSent();
+        Serial.println(F("Reset txt sent"));
+
+        // Reset that the body of the text message is ready for writing
+        SIM.resetReadyForEnteringText();
+        Serial.println(F("Reset ready enter text"));
+
+        // Send command for setting the phone number
+        SIM.sendTwilioPhoneNumber();
+        Serial.println(F("Sent phone number"));
+
+        do {
+          SIM.update();
+        } while (!SIM.isReadyForEnteringText());
+        // for (int i = 0; i < 5; i ++) {
+        //   SIM.update();
+        // }
+        Serial.println(F("Enter text now: "));
+      }
+      else {
+        // Print each character to text message body
+        SIM.sendATCommands((char)c);
+
+        // DEBUG print to console the "text message"
+        Serial.print((char)c);
+      }
     }
-    // Send end of message character and carriage return
-    SIM.sendATCommands(char(26));
-    SIM.sendATCommands('\r');
 
-    Serial.println(F("Sent TXT Msg."));
+    Serial.println(F("Finished texts"));
     
     // Close the file
     if (!storageFile.close()) {
-      Serial.print(F("SD close file error"));
+      Serial.println(F("SD close file error"));
     }
   }
   else {
     // If the file didn't open, print an error
-    Serial.print(F("Send txtmsg err reading "));
+    Serial.print(F("Err reading "));
     Serial.println(filename);
   }
 }
@@ -350,7 +377,7 @@ void printRecordedData() {
     Serial << SnakeData.rfidTag[i] << F(", ");
   }
   Serial << SnakeData.temperature << F("C, ") << SnakeData.humidity << F("%, ");
-  Serial << SnakeData.weight << F(" vs ") << HX711.getCurrentWeight() << endl;
+  Serial << SnakeData.weight << endl;
 }
 
 /**

@@ -40,7 +40,9 @@ void Q2HX711::update() {
     long weightDifference = currentWeight - previousWeight;
     if (weightDifference > HX711_WEIGHT_BOUNDARY_TRIGGER) {
       // Set detect weight flag to true
-      weightDetected = true;
+      if (!weightDetected) {
+        weightDetected = true;
+      }
 
       // Increase polling interval if weight detected (up to 10Hz or 80Hz)
       if (millisInterval == INITIAL_WEIGHT_POLLING) {

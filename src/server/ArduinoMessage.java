@@ -15,7 +15,7 @@ public class ArduinoMessage {
 	/**
 	 * The number of sensor readings sent in a text message.
 	 */
-	private static final int NUMBER_OF_SENSOR_READINGS = 4;
+	private static final int NUMBER_OF_SENSOR_READINGS = 5;
 	/**
 	 * Maximum temperature before reading or value is incorrect (Mauritius highest 40C).
 	 */

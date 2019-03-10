@@ -17,19 +17,8 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
     // Set power control pin on Arduino
     POWER_PIN = power_pin;
 
-    // Setup variables
-    // Power and timing
-    poweredOn = false;       // Starts turned off as Arduino pin is low
-    powerOnMillis = -1;
-    lastNetworkCheck = 0;
-    // Connectivity vars
-    connectedToNetwork = false;
-    // Text message vars
-    textMessageBodyReady = false;
-    textMessageSent = false;
-    // Message
-    messageIndex = 0;
-    messageReceived = false;
+    // Reset/Setup variables
+    resetVariables();
 }
 
 /**
@@ -53,34 +42,9 @@ void SIM900::update() {
             read();
             
             // Check module is connected to the network
-            if (connectedToNetwork) {
-                if (!textMessageBodyReady) {
-                    // Setup text mode on the module
-                    sendATCommands(TEXT_MODE);
-                    sendATCommands(CARRIAGE_RETURN);
-                    Serial.println(F("Text mode sent"));
-
-                    delay(2000);
-
-                    // Set phone number to send text to
-                    sendATCommands(TWILIO_PHONE_NUMBER);
-                    sendATCommands(CARRIAGE_RETURN);
-                    Serial.println(F("Twilio phone number sent"));
-
-                    delay(2000);
-
-                    // Set flag ready for typing text message
-                    textMessageBodyReady = true;
-                }
-            }
-            // Send commands to test network registration
-            else {
+            if (!connectedToNetwork) {
                 // Test every 10 seconds for network registration 
                 if (currentMillis - lastNetworkCheck > CHECK_NETWORK_MILLIS) {
-                    // Enable network registration
-                    // sendATCommands(ENABLE_NETWORK_REGISTRATION);
-                    // sendATCommands(CARRIAGE_RETURN);
-                    
                     // Send network registration check
                     sendATCommands(TEST_NETWORK_REGISTRATION);
                     sendATCommands(CARRIAGE_RETURN);
@@ -96,9 +60,6 @@ void SIM900::update() {
         else if (currentMillis - powerOnMillis > SIM_POWER_ON_MILLIS) {
             // Turn off module
             powerDown();
-
-            // Reset millis when module was powered on
-            powerOnMillis = -1;
         }
     } // End poweredOn if
 } // End update function
@@ -119,15 +80,14 @@ void SIM900::read() {
         rawMessage[messageIndex++] = inByte;
 
         // Entire message has been received, \r and \n mean "end of message"
-        if (inByte == '\r' || inByte == '\n') {
+        if (inByte == '\r' || inByte == '\n' || inByte == '>') {
             // Terminate the raw message replacing both the '\r' and '\n' characters
-            messageIndex--;
+            if (inByte != '>') {
+                messageIndex--;
+            }
             rawMessage[messageIndex] = '\0';
 
             Serial.println(rawMessage);
-            
-            // Set that a message has been received
-            messageReceived = true;
 
             // Message has been dealt with, reset message index
             messageIndex = 0;
@@ -135,9 +95,24 @@ void SIM900::read() {
             // Compare received message to list of expected values
             if (strcmp(rawMessage, OK) == 0) {
                 Serial.println(F("Hit OK"));
+                // Only set response if a command was sent
+                if (commandSent) {
+                    okReceived = true;
+                }
             }
             else if (strcmp(rawMessage, ERROR) == 0) {
                 Serial.println(F("Hit ERROR"));
+                // Only set response if a command was sent
+                if (commandSent) {
+                    errorReceived = true;
+                }
+            }
+            else if (strcmp(rawMessage, WAITING_FOR_TEXT) == 0) {
+                Serial.println(F("Hit WAITING_FOR_TEXT"));
+                // Only set response if a command was sent
+                if (commandSent) {
+                    readyForEnteringText = true;
+                }
             }
             
             // Always check for the number of text messages sent reply
@@ -157,7 +132,7 @@ void SIM900::read() {
             }
             else if (strcmp(rawMessage, UNSOLICITED_NETWORK_REGISTERED) == 0) {
                 connectedToNetwork = true;
-                Serial.println(F("Connected to network unsolicited"));
+                Serial.println(F("Connected to network, unsolicited reply"));
             }
         }
     }
@@ -176,22 +151,73 @@ void SIM900::sendATCommands(char character) {
     SIM->print(character);
 }
 
-boolean SIM900::getPowerStatus() {
-    return poweredOn;
+/**
+ * Function to send the Twilio phone number to the module to start a text message
+ */
+void SIM900::sendTwilioPhoneNumber() {
+    sendATCommands(TWILIO_PHONE_NUMBER);
+    sendATCommands(CARRIAGE_RETURN);
+    commandSent = true;
 }
 
-boolean SIM900::isTextMessageBodyReady() {
-    return textMessageBodyReady;
-}
-void SIM900::resetTextMessageBodyReady() {
-    textMessageBodyReady = false;
+/**
+ * Function to end a text message and send it
+ */
+void SIM900::sendEndOfTextMessage() {
+    sendATCommands(END_OF_MESSAGE);
+    sendATCommands(CARRIAGE_RETURN);
+    commandSent = true;
 }
 
+/**
+ * Function to get and reset whether a text message has been sent
+ */
 boolean SIM900::wasTextMessageSent() {
     return textMessageSent;
 }
 void SIM900::resetTextMessageSent() {
     textMessageSent = false;
+}
+
+/**
+ * Function to get and reset whether the module is ready to enter body text
+ */
+boolean SIM900::isReadyForEnteringText() {
+    return readyForEnteringText;
+}
+void SIM900::resetReadyForEnteringText() {
+    readyForEnteringText = false;
+}
+
+boolean SIM900::isConnectedToNetwork() {
+    return connectedToNetwork;
+}
+
+boolean SIM900::getPowerStatus() {
+    return poweredOn;
+}
+
+/**
+ * Function to set all the member variables to initial values
+ */
+void SIM900::resetVariables() {
+    // Power and timing
+    poweredOn = false;       // Starts turned off as Arduino pin is low
+    powerOnMillis = -1;
+    lastNetworkCheck = 0;
+
+    // Connectivity and response vars
+    connectedToNetwork = false;
+    okReceived = false;
+    errorReceived = false;
+    commandSent = false;
+
+    // Text message vars
+    textMessageSent = false;
+    readyForEnteringText = false;
+
+    // Message
+    messageIndex = 0;
 }
 
 /**
@@ -204,6 +230,9 @@ void SIM900::powerDown() {
 
         // Set power state to off
         poweredOn = false;
+
+        // Reset all member variables
+        resetVariables();
 
         // DEBUG
         digitalWrite(LED_BUILTIN, LOW);  // DEBUG LED
@@ -230,3 +259,58 @@ void SIM900::powerUp() {
         Serial.println(F("SIM powering up"));
     }
 }
+
+
+
+// TODO: Remove or change back
+/* 
+// Check commands are sent and update if response received
+if (commandSent) {
+    if (!textModeSet) {
+        if (okReceived) {
+            okReceived = false;
+            commandSent = false;
+            textModeSet = true;
+        }
+    }
+    else if (!phoneNumberSet) {
+        if (okReceived) {
+            // No response after phone number is set apart from >
+            okReceived = false;
+            commandSent = false;
+            phoneNumberSet = true;
+
+            // Set flag ready for typing text message
+            textMessageBodyReady = true;
+        }
+    }
+    
+    // Always check for an error
+    if (errorReceived) {
+        // Resend commands if error received
+        // TODO: Continual fail?
+        //commandSent = false;
+    }
+}   // End commandSent
+
+if (!textMessageBodyReady) {
+    if (!commandSent && !textModeSet) {
+        // Setup text mode on the module
+        sendATCommands(TEXT_MODE);
+        sendATCommands(CARRIAGE_RETURN);
+        Serial.println(F("Text mode sent"));
+
+        commandSent = true;
+    }
+    else if (!commandSent && !phoneNumberSet && textModeSet) {
+        // Set phone number to send text to
+        sendATCommands(TWILIO_PHONE_NUMBER);
+        sendATCommands(CARRIAGE_RETURN);
+        Serial.println(F("Twilio phone number sent"));
+
+        commandSent = true;
+    }
+
+
+}   // End textMessageBodyReady
+*/

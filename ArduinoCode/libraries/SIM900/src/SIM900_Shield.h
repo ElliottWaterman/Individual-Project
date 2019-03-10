@@ -12,7 +12,8 @@ const unsigned long CHECK_NETWORK_MILLIS = 15000;   // Number of milliseconds be
 
 
 /* DEFINES */
-#define CARRIAGE_RETURN             '\r'
+#define CARRIAGE_RETURN                 '\r'
+#define END_OF_MESSAGE                  char(26)
 
 // Connectivity commands
 #define ENABLE_NETWORK_REGISTRATION     "AT+CREG=1"
@@ -25,10 +26,11 @@ const unsigned long CHECK_NETWORK_MILLIS = 15000;   // Number of milliseconds be
 // Replies
 #define OK                              "OK"
 #define ERROR                           "ERROR"
+#define WAITING_FOR_TEXT                ">"
 #define NUMBER_OF_MESSAGES              "+CMGS:"
-#define UNSOLICITED_NETWORK_REGISTERED  "+CREG: 1"
 #define HOME_NETWORK_REGISTERED         "+CREG: 1,1"
 #define ROAMING_NETWORK_REGISTERED      "+CREG: 1,5"
+#define UNSOLICITED_NETWORK_REGISTERED  "+CREG: 1"
 
 
 class SIM900
@@ -43,19 +45,29 @@ class SIM900
         void sendATCommands(const char *&message);
         void sendATCommands(char *message);
         void sendATCommands(char character);
-        boolean isTextMessageBodyReady();
-        void resetTextMessageBodyReady();
+
+        // Sending commands funcs
+        void sendTwilioPhoneNumber();
+        void sendEndOfTextMessage();
+
+        // States in text message sending funcs
+        boolean isReadyForEnteringText();
+        void resetReadyForEnteringText();
         boolean wasTextMessageSent();
         void resetTextMessageSent();
 
+        // Network check func
+        boolean isConnectedToNetwork();
+
         // Power funcs
+        boolean getPowerStatus();
         void powerDown();
         void powerUp();
-        boolean getPowerStatus();
         
     protected:
         // Functions
         void read();
+        void resetVariables();
 
         SoftwareSerial *SIM;    // Serial communication by simulating serial on Arduino pins (pointer to SoftSerial in SBSBS)
 
@@ -67,17 +79,19 @@ class SIM900
         unsigned long powerOnMillis;    // Time in milliseconds when the module was powered on
         unsigned long lastNetworkCheck; // Last time in milliseconds when the network registration was checked
 
-        // Connectivity vars
+        // Connectivity and response vars
         boolean connectedToNetwork;
+        boolean okReceived;
+        boolean errorReceived;
+        boolean commandSent;
 
         // Text message vars
-        boolean textMessageBodyReady;
         boolean textMessageSent;
+        boolean readyForEnteringText;
 
         // Message vars
         char rawMessage[MAX_SIM_MESSAGE_SIZE];  // Character array holding incoming bytes from module
         byte messageIndex;                      // Index of the next character to place
-        boolean messageReceived;                // Flag to tell when a message was received
 };
 
 #endif

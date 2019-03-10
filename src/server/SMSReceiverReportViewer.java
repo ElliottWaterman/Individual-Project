@@ -162,6 +162,8 @@ public class SMSReceiverReportViewer {
             // Split body text up into separate readings by carriage return and/or new line
 			ArrayList<String> bodyTextReadings = new ArrayList<String>(Arrays.asList(bodyText.split(System.lineSeparator())));
 			
+			System.out.println("Number of split lines: " + bodyTextReadings.size());
+			
 			for (String CSVMessage : bodyTextReadings) {
 				// Trim carriage return and new line from start and end of string
 				CSVMessage = CSVMessage.trim();
@@ -271,6 +273,9 @@ public class SMSReceiverReportViewer {
     	}
     	
     	String CSVString = message.parseToCSVString();
+    	
+    	System.out.println("Saving to storage file:");
+    	System.out.println(CSVString);
     	
     	// Create file writer with path to storage file (true appends to end)
     	FileWriter writer = new FileWriter(STORAGE_FILE, true);
