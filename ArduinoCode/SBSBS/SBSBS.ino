@@ -154,14 +154,14 @@ void setup() {
 
   Serial.println(F("S C."));
 
-  snakeDataSavedToFile = true;
+  //snakeDataSavedToFile = true;  // DEBUG
 }
 
 
 /* LOOP */
 void loop() {
   // Check time is after 8:00pm
-  if (hour(RTC.get()) >= 11 && minute(RTC.get()) >= 1) {
+  if (hour(RTC.get()) >= 23 && minute(RTC.get()) >= 24) {
     // Power down other modules if needed
     //RFID.powerDown();
 
@@ -241,9 +241,6 @@ void loop() {
         // Throughout sensing time get the highest weight detected
         SnakeData.weight = HX711.getHighestDetectedWeight();
 
-        // Reset highest detected weight
-        HX711.resetHighestDetectedWeight();
-
         // DEBUG print snake data
         printRecordedData();
 
@@ -256,6 +253,9 @@ void loop() {
 
       // Reset weight detection
       HX711.resetWeightDetected();
+
+      // Reset highest detected weight
+      HX711.resetHighestDetectedWeight();
     }
   }
 } // End loop
@@ -272,64 +272,69 @@ void sendSnakeDataSMS() {
 
   // Opening the file for reading and writing content to SIM900 module
   if (storageFile.open(filename, O_READ)) {
-    // Send phone number to start text message
+    // Reset that text mode is ready
+    SIM.resetTextModeReady();
+    
+    // Send text mode to SIM900 module
+    SIM.sendTextMode();
+    Serial.println(F("Sent text mode."));
+
+    while (!SIM.isTextModeReady()) {
+      SIM.read();
+    }
+    Serial.println(F("Text mode ready."));
+
+
     // Reset that the body of the text message is ready for writing
     SIM.resetReadyForEnteringText();
 
     // Send command for setting the phone number
     SIM.sendTwilioPhoneNumber();
+    Serial.println(F("Sent phone number."));
 
-    do {
-      SIM.update();
-    } while (!SIM.isReadyForEnteringText());
-    Serial.println(F("Enter text now: "));
+    while (!SIM.isReadyForEnteringText()) {
+      SIM.read();
+    }
+    Serial.println(F("Phone ready for text."));
 
+    // How many characters wil be sent
+    byte messageCharacters = 0;
     // Read from the file until there's nothing else in it
     int16_t c;
     while ((c = storageFile.read()) > 0) {
       // An end of line was found
       if (c == '\r' || c == '\n') {
-        Serial.println();
-        Serial.println(F("End of line, sending text..."));
+        // If a line without any data
+        if (messageCharacters >= 37) {
+          Serial.print(F("End of line reached, sending text with chars: "));
+          Serial.println(messageCharacters);
 
-        // Finish text message and send
-        SIM.sendEndOfTextMessage();
-        Serial.println(F("Sent EOTM"));
-        Serial.println(SIM.wasTextMessageSent());
-        Serial.println(SIM.isReadyForEnteringText());
+          // Reset all parts of sending a text
+          SIM.resetTextMessageSent();
+          SIM.resetReadyForEnteringText();
 
-        // for (int i = 0; i < 5; i ++) {
-        //   SIM.update();
-        // }
+          // Finish text message and send
+          SIM.sendEndOfTextMessage();
 
-        do {
-          SIM.update();
-        } while (!SIM.wasTextMessageSent());
-        Serial.println(F("Text sent."));
+          while (!SIM.wasTextMessageSent()) {
+            SIM.read();
+          }
 
-        // Reset that a text message was sent
-        SIM.resetTextMessageSent();
-        Serial.println(F("Reset txt sent"));
+          // Send command for setting the phone number
+          SIM.sendTwilioPhoneNumber();
 
-        // Reset that the body of the text message is ready for writing
-        SIM.resetReadyForEnteringText();
-        Serial.println(F("Reset ready enter text"));
-
-        // Send command for setting the phone number
-        SIM.sendTwilioPhoneNumber();
-        Serial.println(F("Sent phone number"));
-
-        do {
-          SIM.update();
-        } while (!SIM.isReadyForEnteringText());
-        // for (int i = 0; i < 5; i ++) {
-        //   SIM.update();
-        // }
-        Serial.println(F("Enter text now: "));
+          while (!SIM.isReadyForEnteringText()) {
+            SIM.read();
+          }
+          Serial.println(F("Phone ready for text."));
+        }
+        // Reset the number of characters sent
+        messageCharacters = 0;
       }
       else {
         // Print each character to text message body
         SIM.sendATCommands((char)c);
+        messageCharacters++;
 
         // DEBUG print to console the "text message"
         Serial.print((char)c);
@@ -369,8 +374,7 @@ void resetSnakeData() {
  * DEBUG Function to print the contents of the snake data struct.
  */
 void printRecordedData() {
-  Serial << SnakeData.epochTime;// << F(" or ");
-  //printDateTime(SnakeData.epochTime);
+  Serial << SnakeData.epochTime;
   Serial << F(", Snake: ") << SnakeData.rfidTag[0] << F(". ");
   Serial << F("Skinks: ");
   for (int i = 1; i < SnakeData.rfidTagIndex; i++) {
@@ -384,6 +388,8 @@ void printRecordedData() {
  * Function to record all sensor values to the snake data struct.
  */
 void recordSnakeData() {
+  Serial << F("Recording SNAKE tag") << endl;
+
   // Assign epoch time
   SnakeData.epochTime = RTC.get();
   // Assign RFID tag and increase index
@@ -404,7 +410,7 @@ void recordSnakeData() {
 void recordSkinkTags() {
   boolean sameTag = false;
 
-  Serial << F("Recording skink tag") << endl;
+  Serial << F("Recording SKINK tag") << endl;
 
   // Check that existing tags are not saved more than once
   for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
@@ -417,28 +423,14 @@ void recordSkinkTags() {
     }
   }
 
-  Serial << F("Index: ") << SnakeData.rfidTagIndex << endl;
-
   if (SnakeData.rfidTagIndex < MAX_RFID_TAGS && !sameTag) {
     // Add tag to list of tags in the snake
     SnakeData.rfidTag[SnakeData.rfidTagIndex++] = RFID.getMessage();
   }
   else {
-    // Too many skinks been eaten, over MAX_RFID_TAGS (5)
+    // Too many skinks been eaten, over MAX_RFID_TAGS (4)
     Serial.println(F("Too many skink tags read!"));
   }
-}
-
-/**
- * Function to print the day month year hour:minute:second of time_t input.
- */
-void printDateTime(time_t t) {
-  Serial << ((day(t) < 10) ? "0" : "") << _DEC(day(t));
-  Serial << monthShortStr(month(t));
-  Serial << _DEC(year(t)) << ' ';
-  Serial << ((hour(t) < 10) ? "0" : "") << _DEC(hour(t)) << ':';
-  Serial << ((minute(t) < 10) ? "0" : "") << _DEC(minute(t)) << ':';
-  Serial << ((second(t) < 10) ? "0" : "") << _DEC(second(t));
 }
 
 /**

@@ -93,11 +93,17 @@ boolean RFID_P1D::readMessage() {
             // Terminate the raw message replacing the '\r' character
             rawMessage[--messageIndex] = '\0';
 
-            // Assign string object fom character array
-            message = String(rawMessage);
+            // If long enough a tag was read
+            if (messageIndex >= 16) {
+                // Set that a tag has been read
+                tagRead = true;
 
-            // Set that a tag has been read
-            tagRead = true;
+                // Assign string object from character array
+                message = String(rawMessage);
+            }
+
+            // Always print the incoming message
+            Serial.println(rawMessage);
 
             // Message has been dealt with, reset message index
             messageIndex = 0;

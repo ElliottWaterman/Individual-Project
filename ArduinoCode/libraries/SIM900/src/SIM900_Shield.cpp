@@ -69,9 +69,9 @@ void SIM900::update() {
  */
 void SIM900::read() {
     // Listen to serial port for SIM communication
-    SIM->listen();
     if (!SIM->isListening()) {
-        Serial.println(F("Not listening to SIM!"));
+        SIM->listen();
+        Serial.println(F("SIM now listening"));
     }
 
     while (SIM->available() && messageIndex < (MAX_SIM_MESSAGE_SIZE - 1)) {
@@ -136,6 +136,13 @@ void SIM900::read() {
             }
         }
     }
+
+    if (messageIndex >= (MAX_SIM_MESSAGE_SIZE - 1))
+    {
+        Serial.println(F("Message too long!"));
+        messageIndex = 0;
+    }
+    
 }
 
 /**
@@ -154,29 +161,38 @@ void SIM900::sendATCommands(char character) {
 /**
  * Function to send the Twilio phone number to the module to start a text message
  */
+void SIM900::sendTextMode() {
+    commandSent = true;
+    sendATCommands(TEXT_MODE);
+    sendATCommands(CARRIAGE_RETURN);
+}
+
+/**
+ * Function to send the Twilio phone number to the module to start a text message
+ */
 void SIM900::sendTwilioPhoneNumber() {
+    commandSent = true;
     sendATCommands(TWILIO_PHONE_NUMBER);
     sendATCommands(CARRIAGE_RETURN);
-    commandSent = true;
 }
 
 /**
  * Function to end a text message and send it
  */
 void SIM900::sendEndOfTextMessage() {
+    commandSent = true;
     sendATCommands(END_OF_MESSAGE);
     sendATCommands(CARRIAGE_RETURN);
-    commandSent = true;
 }
 
 /**
- * Function to get and reset whether a text message has been sent
+ * Function to get and reset whether the module is in text mode
  */
-boolean SIM900::wasTextMessageSent() {
-    return textMessageSent;
+boolean SIM900::isTextModeReady() {
+    return okReceived;
 }
-void SIM900::resetTextMessageSent() {
-    textMessageSent = false;
+void SIM900::resetTextModeReady() {
+    okReceived = false;
 }
 
 /**
@@ -187,6 +203,16 @@ boolean SIM900::isReadyForEnteringText() {
 }
 void SIM900::resetReadyForEnteringText() {
     readyForEnteringText = false;
+}
+
+/**
+ * Function to get and reset whether a text message has been sent
+ */
+boolean SIM900::wasTextMessageSent() {
+    return textMessageSent;
+}
+void SIM900::resetTextMessageSent() {
+    textMessageSent = false;
 }
 
 boolean SIM900::isConnectedToNetwork() {

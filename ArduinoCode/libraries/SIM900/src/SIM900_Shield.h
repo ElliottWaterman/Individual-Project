@@ -13,7 +13,6 @@ const unsigned long CHECK_NETWORK_MILLIS = 15000;   // Number of milliseconds be
 
 /* DEFINES */
 #define CARRIAGE_RETURN                 '\r'
-#define END_OF_MESSAGE                  char(26)
 
 // Connectivity commands
 #define ENABLE_NETWORK_REGISTRATION     "AT+CREG=1"
@@ -22,6 +21,7 @@ const unsigned long CHECK_NETWORK_MILLIS = 15000;   // Number of milliseconds be
 // Text message commands
 #define TEXT_MODE                       "AT+CMGF=1"
 #define TWILIO_PHONE_NUMBER             "AT+CMGS=\"+441233800093\""
+#define END_OF_MESSAGE                  char(26)
 
 // Replies
 #define OK                              "OK"
@@ -42,15 +42,19 @@ class SIM900
 
         // Usage funcs
         void update();
+        void read();
         void sendATCommands(const char *&message);
         void sendATCommands(char *message);
         void sendATCommands(char character);
 
         // Sending commands funcs
+        void sendTextMode();
         void sendTwilioPhoneNumber();
         void sendEndOfTextMessage();
 
         // States in text message sending funcs
+        boolean isTextModeReady();
+        void resetTextModeReady();
         boolean isReadyForEnteringText();
         void resetReadyForEnteringText();
         boolean wasTextMessageSent();
@@ -66,7 +70,6 @@ class SIM900
         
     protected:
         // Functions
-        void read();
         void resetVariables();
 
         SoftwareSerial *SIM;    // Serial communication by simulating serial on Arduino pins (pointer to SoftSerial in SBSBS)
