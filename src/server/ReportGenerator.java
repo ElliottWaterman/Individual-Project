@@ -1,6 +1,8 @@
 package server;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 /**
  * Class to define the generation of an HTML webpage for displaying report data.
@@ -75,13 +77,16 @@ public class ReportGenerator {
     	HTMLReport.append("<table id=\"report-table\"><thead><tr>" +
     					  "<th min-width=\"250\">ID</th>" + 
     					  "<th>Phone Number</th>" +
-    					  "<th>Time</th>" + 
+    					  "<th>Time Snake Detected</th>" + 
     					  "<th tabulator-align=\"center\">Temperature</th>" +
     					  "<th tabulator-align=\"center\">Humidity</th>" +
     					  "<th tabulator-align=\"center\">Weight</th>" +
     					  "<th>Snake RFID</th>" +
     					  "<th>Skink RFIDs</th>" +
     					  "</tr></thead><tbody>");
+    	
+    	// Create date formatter
+    	SimpleDateFormat dateFormatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     	
 		// Put each message data into an HTML column
 		for (ArduinoMessage message : listOfMessages) {
@@ -93,7 +98,11 @@ public class ReportGenerator {
 					HTMLReport.append(message.getPhoneNumber());
 				HTMLReport.append(TABLE_COLUMN_CLOSE);
 				HTMLReport.append(TABLE_COLUMN_OPEN);
-					HTMLReport.append(message.getEpochMillis());
+				
+				// Convert epoch time (long) to date format
+				String epochDate = dateFormatter.format(new Date((long) message.getEpochMillis() * 1000));
+				
+					HTMLReport.append(epochDate);
 				HTMLReport.append(TABLE_COLUMN_CLOSE);
 				HTMLReport.append(TABLE_COLUMN_OPEN);
 					HTMLReport.append(message.getTemperature());
