@@ -34,6 +34,7 @@ const byte PIN_SIM900_RX =    6;  //Receiving pin for the SIM900 module
 const byte PIN_SIM900_TX =    7;  //Transmitting pin for the SIM900 module
 const byte PIN_RFID_RX =      8;  //Receiving pin on Arduino (use tx wire on board)
 const byte PIN_RFID_TX =      9;  //Transmitting pin on Arduino (use rx wire on board)
+const byte PIN_SEND_SMS =     10; //Read button input to send SMS (DEBUG)
 
 const byte PIN_SD_SS =        A0; //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
 //const byte PIN_SPI =          11;  // 12, 13 pins work
@@ -83,6 +84,8 @@ Fat16 storageFile;
 
 // Flag to determine if an SMS message of snake data should be sent
 boolean snakeDataSavedToFile = false;
+// Flag for button press to send an SMS
+boolean sendSMS = false;
 
 
 /* STRUCTURES */
@@ -148,6 +151,8 @@ void setup() {
   }
 
   // DEBUG
+  pinMode(PIN_SEND_SMS, INPUT); // Set pin as an input which uses the built-in pullup resistor
+
   pinMode(LED_BUILTIN, OUTPUT);       // The built-in LED on pin 13 indicates when the Arduino is asleep
   pinMode(PIN_WAKE_UP, INPUT_PULLUP); // Set pin as an input which uses the built-in pullup resistor
   //digitalWrite(LED_BUILTIN, HIGH);    // Turn built-in LED on
@@ -160,8 +165,17 @@ void setup() {
 
 /* LOOP */
 void loop() {
+  // DEBUG
+  if (!sendSMS) {
+    // Check for button press
+    sendSMS = digitalRead(PIN_SEND_SMS);
+    if (sendSMS) {
+      snakeDataSavedToFile = true;
+    }
+  }
+
   // Check time is after 8:00pm
-  if (hour(RTC.get()) >= 23 && minute(RTC.get()) >= 24) {
+  if ((hour(RTC.get()) >= 18 && minute(RTC.get()) >= 8) || sendSMS) {
     // Power down other modules if needed
     //RFID.powerDown();
 
