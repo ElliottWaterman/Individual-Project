@@ -16,9 +16,13 @@ import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -107,17 +111,16 @@ public class SMSReceiverReportViewer {
         get("/upload", (req, res) -> {
         	// Upload the SBSBS.csv report file to Google Drive
         	try {
-        		String uploadedFileName = GoogleDriveService.uploadReportFile();
-        		return uploadedFileName + "<br><br>Click back to view Report Viewer";
-        	}
-        	catch (IOException ioXcp) {
-        		ioXcp.printStackTrace();
-        		return false;
-        	}
-        	catch (GeneralSecurityException gsXcp) {
-        		gsXcp.printStackTrace();
-        		return false;
-        	}
+	        	return uploadToGoogleDrive();
+	        }
+	    	catch (IOException ioXcp) {
+	    		ioXcp.printStackTrace();
+	    		return false;
+	    	}
+	    	catch (GeneralSecurityException gsXcp) {
+	    		gsXcp.printStackTrace();
+	    		return false;
+	    	}
         });
         
         /**
@@ -215,9 +218,45 @@ public class SMSReceiverReportViewer {
             
             return NO_MESSAGE_REPLY;
         });
+        
+        /**
+         * Set a scheduled task to upload CSV storage file to Google Drive.
+         */
+        // Calendar for setting evening tasks
+        Calendar calendar = Calendar.getInstance();
+        // Set time to the evening 22:00 PM
+        calendar.set(Calendar.HOUR_OF_DAY, 22);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        
+        System.out.println("Google Drive upload scheduled to start at " + calendar.getTime());
+        
+        // Timer to schedule repetitive tasks
+        Timer timer = new Timer();
+        // Set a scheduled task to upload to Google Drive
+		timer.schedule(new TimerTask() {
+			public void run() {
+				System.out.println("Trying upload to Google Drive.");
+				try {
+					System.out.println("Uploaded file to Google Drive: " + GoogleDriveService.uploadReportFile());
+				}
+				catch (IOException ioXcp) {
+					ioXcp.printStackTrace();
+				}
+				catch (GeneralSecurityException gsXcp) {
+					gsXcp.printStackTrace();
+				}
+			}
+		}, calendar.getTime(), 24*60*60*1000);	// Delay by 24*60*60*1000 milliseconds, 24 hours between job executions
     }
     
-    /**
+    private static String uploadToGoogleDrive() throws IOException, GeneralSecurityException {
+		String uploadedFileName = GoogleDriveService.uploadReportFile();
+		return uploadedFileName + "<br><br>Click back to view Report Viewer";
+	}
+    
+	/**
      * Function to check the storage file and create a new one if it does not 
      * exist.
      * @throws IOException An exception caused by creating a new file.

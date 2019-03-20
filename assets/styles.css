@@ -1,3 +1,33 @@
+@font-face
+{
+	font-family: snakeFont;
+	src: url('FontSnake.ttf'),
+	url('FontSnake.ttf');
+}
+
+@font-face
+{
+	font-family: snakeFontBethanie;
+	src: url('FontBethanieSnake.ttf'),
+	url('FontBethanieSnake.ttf');
+}
+
+@font-face
+{
+	font-family: snakeFontChan;
+	src: url('FontSnakeChan.ttf'),
+	url('FontSnakeChan.ttf');
+}
+
+h1 {
+  font-family: snakeFontChan;
+  font-size: 40px;
+}
+
+h2 {
+  font-family: snakeFontChan;
+}
+
 #report-table {
   margin-top:30px;
 }

@@ -75,12 +75,12 @@ public class ReportGenerator {
     	// Create table which is converted into a responsive table using Tabulator
     	// Add table header and tbody open tag
     	HTMLReport.append("<table id=\"report-table\"><thead><tr>" +
-    					  "<th min-width=\"250\">ID</th>" + 
+    					  "<th>ID</th>" + 
     					  "<th>Phone Number</th>" +
     					  "<th>Time Snake Detected</th>" + 
-    					  "<th tabulator-align=\"center\">Temperature</th>" +
-    					  "<th tabulator-align=\"center\">Humidity</th>" +
-    					  "<th tabulator-align=\"center\">Weight</th>" +
+    					  "<th>Temperature</th>" +
+    					  "<th>Humidity</th>" +
+    					  "<th>Weight</th>" +
     					  "<th>Snake RFID</th>" +
     					  "<th>Skink RFIDs</th>" +
     					  "</tr></thead><tbody>");
