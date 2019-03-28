@@ -64,11 +64,7 @@ void Q2HX711::update() {
 
     // Set new highest detected weight and new lowest from array
     if (weightDetected && highestDetectedWeight < currentWeight) {
-      // Serial << "Weight: " << highestDetectedWeight << " < " << currentWeight << " : ";
-      // Serial << (highestDetectedWeight < currentWeight ? "true" : "false") << " or ";
-      // Serial << normaliseLongToWeight(currentWeight) << " replacing " << normaliseLongToWeight(highestDetectedWeight) << endl;
-
-      Serial << F("HWD: ") << normaliseLongToWeight(currentWeight) << endl;
+      Serial << F("HWD: ") << currentWeight << F(" or ") << normaliseLongToWeight(currentWeight) << endl;
       highestDetectedWeight = currentWeight;
     }
 	} // End regular time update
@@ -166,7 +162,7 @@ double Q2HX711::getHighestDetectedWeight() {
 }
 
 void Q2HX711::resetHighestDetectedWeight() {
-  highestDetectedWeight = 0;
+  highestDetectedWeight = initialZeroPosition;
 }
 
 long Q2HX711::getInitialZero() {
