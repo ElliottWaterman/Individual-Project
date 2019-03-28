@@ -14,6 +14,9 @@ RFID_P1D::RFID_P1D(SoftwareSerial *rfidSerial, byte power_pin) {
     // Set power control pin on Arduino
     POWER_PIN = power_pin;
 
+    // Set power pin as an output so digital write works
+    pinMode(POWER_PIN, OUTPUT);
+
     // TODO: Could set reader active here (SRA<crn>)
     //RFID->write("SRA" + (char)13);
 

@@ -16,6 +16,9 @@ SIM900::SIM900(SoftwareSerial *simSerial, byte power_pin) {
 
     // Set power control pin on Arduino
     POWER_PIN = power_pin;
+    
+    // Set power pin as an output so digital write works
+    pinMode(POWER_PIN, OUTPUT);
 
     // Reset/Setup variables
     resetVariables();
@@ -251,8 +254,13 @@ void SIM900::resetVariables() {
  */
 void SIM900::powerDown() {
     if (poweredOn && POWER_PIN != -1) {
-        // Turn off module
+        // Turn off module (same as turning on - simulates button press)
         digitalWrite(POWER_PIN, LOW);
+        delay(1000);
+        digitalWrite(POWER_PIN, HIGH);
+        delay(2000);
+        digitalWrite(POWER_PIN, LOW);
+        delay(3000);
 
         // Set power state to off
         poweredOn = false;
@@ -271,8 +279,14 @@ void SIM900::powerDown() {
  */
 void SIM900::powerUp() {
     if (!poweredOn && POWER_PIN != -1) {
-        // Turn on module
+        // Turn on module (same as turning off - simulates button press)
+        digitalWrite(POWER_PIN, LOW);
+        delay(1000);
         digitalWrite(POWER_PIN, HIGH);
+        delay(2000);
+        digitalWrite(POWER_PIN, LOW);
+        delay(3000);
+        //pinMode(POWER_PIN, INPUT);
 
         // Set power state to on
         poweredOn = true;
