@@ -7,7 +7,7 @@
 #include <Fat16.h>
 #include <Fat16util.h> // use functions to print strings from flash memory
 
-const uint8_t CHIP_SELECT = SS;  // SD card chip select pin.
+const uint8_t CHIP_SELECT = A0;  // SD card chip select pin.
 SdCard card;
 Fat16 file;
 

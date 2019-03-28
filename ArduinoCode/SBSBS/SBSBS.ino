@@ -37,7 +37,9 @@ const byte PIN_RFID_TX =      9;  //Transmitting pin on Arduino (use rx wire on 
 const byte PIN_SEND_SMS =     10; //Read button input to send SMS (DEBUG)
 
 const byte PIN_SD_SS =        A0; //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
-//const byte PIN_SPI =          11;  // 12, 13 pins work
+//const byte PIN_SD_MOSI = 11;
+//const byte PIN_SD_MISO = 12;
+//const byte PIN_SD_SCK = 13;
 const byte PIN_HX711_DATA =   A2; //Weight sensor data pin
 const byte PIN_HX711_CLOCK =  A3; //Weight sensor clock pin
 const byte PIN_RTC_SDA =      A4; //Connect RTC data to Arduino pin A4
@@ -176,7 +178,7 @@ void loop() {
   }
 
   // Check time is after 8:00pm
-  if ((hour(RTC.get()) >= 20 && minute(RTC.get()) >= 0) || sendSMS) {
+  if ((hour(RTC.get()) >= 22 && minute(RTC.get()) >= 55) || sendSMS) {
     // Power down other modules if needed
     //RFID.powerDown();
 
