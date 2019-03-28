@@ -29,7 +29,7 @@
 const byte PIN_WAKE_UP =      2;  //Interrupt pin (or #3) to wake up the Arduino
 const byte PIN_DHT22 =        3;  //Digital pin connected to the DHT22 module
 const byte PIN_RFID_POWER =   4;  //Digital pin connected BJT/MOSFET switch to power module
-const byte PIN_SIM900_POWER = 5;  
+const byte PIN_SIM900_POWER = 5;  //Digital pin connected BJT/MOSFET switch to power module
 const byte PIN_SIM900_RX =    6;  //Receiving pin for the SIM900 module
 const byte PIN_SIM900_TX =    7;  //Transmitting pin for the SIM900 module
 const byte PIN_RFID_RX =      8;  //Receiving pin on Arduino (use tx wire on board)
@@ -170,12 +170,13 @@ void loop() {
     // Check for button press
     sendSMS = digitalRead(PIN_SEND_SMS);
     if (sendSMS) {
+      Serial.println(F("SMS button pressed"));
       snakeDataSavedToFile = true;
     }
   }
 
   // Check time is after 8:00pm
-  if ((hour(RTC.get()) >= 18 && minute(RTC.get()) >= 8) || sendSMS) {
+  if ((hour(RTC.get()) >= 20 && minute(RTC.get()) >= 0) || sendSMS) {
     // Power down other modules if needed
     //RFID.powerDown();
 
@@ -194,7 +195,7 @@ void loop() {
           // Send a text message for each line in the file
           sendSnakeDataSMS();
 
-          // Resets member variables
+          // Turn off SIM900 module, also resets member variables
           SIM.powerDown();
 
           // Reset snake data saved boolean
@@ -207,11 +208,18 @@ void loop() {
       // Check all modules are powered down
       
 
-      // Set morning awake alarm
-      setMorningWakeupAlarm();
+      // Reset that an SMS was sent
+      if (sendSMS) {
+        sendSMS = false;
+      }
+      // Do normal end of day process of sleeping and setting alarm
+      else {
+        // Set morning awake alarm
+        setMorningWakeupAlarm();
 
-      // Sleep Arduino
-      sleepArduino();
+        // Sleep Arduino
+        sleepArduino();
+      }
     }
   }
   // Do normal processes
@@ -483,9 +491,12 @@ void saveSnakeDataToSDCard() {
   // Get file name for today
   char filename[13];
   createFileName(filename);
+  Serial.println(filename);
 
   // Clear write error
   storageFile.writeError = false;
+
+  Serial.println(F("Set write error false"));
 
   // O_CREAT - create the file if it does not exist
   // O_APPEND - seek to the end of the file prior to each write
@@ -636,7 +647,7 @@ void sleepArduino() {
   t = RTC.get();
   Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
 
-  // Set New Alarm
+  // DEBUG Set New Alarm for 5 minutes
   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);
 
   // Clear the alarm flag

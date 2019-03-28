@@ -17,7 +17,7 @@ void setup() {
   RFID.powerUp();
 
   // Open serial communications to serial monitor
-  Serial.begin(9600);
+  Serial.begin(19200);
   Serial.println("Setup complete.");
 }
 
@@ -30,6 +30,14 @@ void loop() {
     // Print tag if read and reset flag
     if (RFID.hasTagBeenRead()) {
       Serial.println(RFID.getMessage());
+
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(500);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(500);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(500);
+      digitalWrite(LED_BUILTIN, HIGH);
 
       RFID.resetTagRead();
     }
@@ -46,7 +54,9 @@ void loop() {
 
 
   // Send messages from Serial Montior to RFID module
-  // if (Serial.available()) {
-  //   mySerial.write(Serial.read());
-  // }
+  if (Serial.available()) {
+    char r = Serial.read();
+    Serial.print(r);
+    RFID_Serial.write(r);
+  }
 }

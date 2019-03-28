@@ -9,6 +9,9 @@ RFID_P1D::RFID_P1D(SoftwareSerial *rfidSerial, byte power_pin) {
 
     // Start communication
     RFID->begin(9600);
+    if (RFID->listen()) {
+        Serial.println(F("Cannot listen RFID"));
+    }
     RFID->listen();
 
     // Set power control pin on Arduino
@@ -81,9 +84,9 @@ void RFID_P1D::update() {
  */
 boolean RFID_P1D::readMessage() {
     // Listen to serial port for RFID communication
-    //RFID->listen();
-    if (RFID->listen()) {
-        Serial.println(F("Cannot listen to RFID!"));
+    if (!RFID->isListening()) {
+        RFID->listen();
+        Serial.println(F("RFID now listening"));
     }
 
     while (RFID->available() && messageIndex < (MAX_RFID_MESSAGE_SIZE - 1)) {
