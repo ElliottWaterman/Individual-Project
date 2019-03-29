@@ -1,5 +1,5 @@
 #include "Q2HX711.h"
-#include <Streaming.h>
+//#include <Streaming.h>
 
 /**
  * Constructor
@@ -49,7 +49,7 @@ void Q2HX711::update() {
         millisInterval = FAST_WEIGHT_POLLING;   // 0.1s
       }
 
-      Serial << F("Weight change detected") << endl;
+      Serial.println(F("Weight change detected"));
       //Serial << "Weight change detected: " << weightDifference << " or " << (weightDifference/SCALE_FACTOR) << endl;
     }
     else if (weightDifference < -HX711_WEIGHT_BOUNDARY_TRIGGER) {
@@ -64,7 +64,10 @@ void Q2HX711::update() {
 
     // Set new highest detected weight and new lowest from array
     if (weightDetected && highestDetectedWeight < currentWeight) {
-      Serial << F("HWD: ") << currentWeight << F(" or ") << normaliseLongToWeight(currentWeight) << endl;
+      Serial.print(F("HWD: "));
+      Serial.print(currentWeight);
+      Serial.print(F(" or "));
+      Serial.println(normaliseLongToWeight(currentWeight));
       highestDetectedWeight = currentWeight;
     }
 	} // End regular time update
@@ -153,9 +156,9 @@ double Q2HX711::normaliseLongToWeight(long reading) {
   }
 }
 
-double Q2HX711::getCurrentWeight() {
-  return normaliseLongToWeight(currentWeight);
-}
+// double Q2HX711::getCurrentWeight() {
+//   return normaliseLongToWeight(currentWeight);
+// }
 
 double Q2HX711::getHighestDetectedWeight() {
   return normaliseLongToWeight(highestDetectedWeight);
@@ -165,9 +168,9 @@ void Q2HX711::resetHighestDetectedWeight() {
   highestDetectedWeight = initialZeroPosition;
 }
 
-long Q2HX711::getInitialZero() {
-  return initialZeroPosition;
-}
+// long Q2HX711::getInitialZero() {
+//   return initialZeroPosition;
+// }
 
 boolean Q2HX711::getWeightDetected() {
 	return weightDetected;

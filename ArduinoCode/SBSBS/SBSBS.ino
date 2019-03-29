@@ -10,7 +10,7 @@
 /* INCLUDES */
 #include <Arduino.h>        //Standard library
 #include <avr/sleep.h>      //AVR library contains methods and sleep modes to control the sleep of an Arduino
-#include <Streaming.h>      //Used to make print statements easier to write
+//#include <Streaming.h>      //Used to make print statements easier to write
 #include <SPI.h>            //Used for SD card communication
 
 #include <SoftwareSerial.h> //Library to communicate with RFID reader (TODO: create class?)
@@ -398,21 +398,26 @@ void resetSnakeData() {
  * DEBUG Function to print the contents of the snake data struct.
  */
 void printRecordedData() {
-  Serial << SnakeData.epochTime;
-  Serial << F(", Snake: ") << SnakeData.rfidTag[0] << F(". ");
-  Serial << F("Skinks: ");
+  Serial.print(SnakeData.epochTime);
+  Serial.print(F(", Snake: "));
+  Serial.print(SnakeData.rfidTag[0]);
+  Serial.print(F(". Skinks: "));
   for (int i = 1; i < SnakeData.rfidTagIndex; i++) {
-    Serial << SnakeData.rfidTag[i] << F(", ");
+    Serial.print(SnakeData.rfidTag[i]);
+    Serial.print(F(", "));
   }
-  Serial << SnakeData.temperature << F("C, ") << SnakeData.humidity << F("%, ");
-  Serial << SnakeData.weight << endl;
+  Serial.print(SnakeData.temperature);
+  Serial.print(F("C, "));
+  Serial.print(SnakeData.humidity);
+  Serial.print(F("%, "));
+  Serial.println(SnakeData.weight);
 }
 
 /**
  * Function to record all sensor values to the snake data struct.
  */
 void recordSnakeData() {
-  Serial << F("Recording SNAKE tag") << endl;
+  Serial.println(F("Recording SNAKE tag"));
 
   // Assign epoch time
   SnakeData.epochTime = RTC.get();
@@ -434,14 +439,15 @@ void recordSnakeData() {
 void recordSkinkTags() {
   boolean sameTag = false;
 
-  Serial << F("Recording SKINK tag") << endl;
+  Serial.println(F("Recording SKINK tag"));
 
   // Check that existing tags are not saved more than once
   for (int index = 0; index < SnakeData.rfidTagIndex; index++) {
     // If a recorded tag equals the tag to save
     if (SnakeData.rfidTag[index].equals(RFID.getMessage())) {
       // Exit function without saving
-      Serial << F("Same tag read: ") << RFID.getMessage() << endl;
+      Serial.print(F("Same tag read: "));
+      Serial.print(RFID.getMessage());
       sameTag = true;
       return;
     }
@@ -474,7 +480,8 @@ void readDHT22() {
 }
 
 /**
- * Function to create the file name for today, in format (YYYYMMDD.csv).
+ * Function to create the file name for today.
+ * Using DOS 8.3 naming format, result: (YYYYMMDD.csv).
  */
 void createFileName(char* filename) {
   // Get current date time
@@ -493,12 +500,9 @@ void saveSnakeDataToSDCard() {
   // Get file name for today
   char filename[13];
   createFileName(filename);
-  Serial.println(filename);
 
   // Clear write error
   storageFile.writeError = false;
-
-  Serial.println(F("Set write error false"));
 
   // O_CREAT - create the file if it does not exist
   // O_APPEND - seek to the end of the file prior to each write
@@ -575,22 +579,6 @@ void saveSnakeDataToSDCard() {
 }
 
 /**
- * Function TODO
- */
-// void setRTCMinutesAlarm() {
-//     // Set alarm on RTC for RTC_ALARM_TIME_INTERVAL + t
-//   time_t t;
-//   t = RTC.get();    //Gets the current time of the RTC
-//   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);  // Setting alarm 1 to go off 5 minutes from now
-//   //Clear the alarm flag
-//   RTC.alarm(ALARM_1);
-//   //Configure the INT/SQW pin for "interrupt" operation (disable square wave output)
-//   RTC.squareWave(SQWAVE_NONE);
-//   //Enable interrupt output for Alarm 1
-//   RTC.alarmInterrupt(ALARM_1, true);
-// }
-
-/**
  * Function to set an interrupt alarm for waking Arduino in the morning.
  */
 void setMorningWakeupAlarm() {
@@ -632,7 +620,12 @@ void sleepArduino() {
 
   time_t t;
   t = RTC.get();
-  Serial.println("Sleep  Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
+  Serial.print(F("Sleep  Time: "));
+  Serial.print(hour(t));
+  Serial.print(F(":"));
+  Serial.print(minute(t));
+  Serial.print(F(":"));
+  Serial.println(second(t));
 
   // Wait a second to allow the led to be turned off before going to sleep
   delay(1000);
@@ -647,7 +640,12 @@ void sleepArduino() {
   digitalWrite(LED_BUILTIN, HIGH);
 
   t = RTC.get();
-  Serial.println("WakeUp Time: " + String(hour(t)) + ":" + String(minute(t)) + ":" + String(second(t)));
+  Serial.print(F("WakeUp Time: "));
+  Serial.print(hour(t));
+  Serial.print(F(":"));
+  Serial.print(minute(t));
+  Serial.print(F(":"));
+  Serial.println(second(t));
 
   // DEBUG Set New Alarm for 5 minutes
   RTC.setAlarm(ALM1_MATCH_MINUTES , 0, minute(t) + RTC_ALARM_TIME_INTERVAL, 0, 0);
