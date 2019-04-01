@@ -19,17 +19,27 @@
 	url('FontSnakeChan.ttf');
 }
 
+body {
+  display: block;
+  margin: 8px;
+  padding: 0px;
+}
+
 h1 {
   font-family: snakeFontChan;
-  font-size: 40px;
+  font-weight: normal;
+  font-size: 2.5em;
 }
 
 h2 {
   font-family: snakeFontChan;
+  font-weight: normal;
+  font-size: 1.5em;
 }
 
 #report-table {
   margin-top:30px;
+  font-size: 0.875em;
 }
 
 .btn {
@@ -39,7 +49,7 @@ h2 {
   padding: 12px 30px;
   margin: 5px 5px 5px 0px;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 1em;
 }
 
 .btn:hover {
