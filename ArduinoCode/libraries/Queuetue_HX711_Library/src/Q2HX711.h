@@ -26,9 +26,8 @@ class Q2HX711
 		long averageWeights[NUM_OF_READINGS];	// Readings from the analog input
 		uint8_t readIndex = 0;              	// Index of the current reading in averageWeights array
 		uint32_t total = 0;						// Running total of the averageWeights array
-		long average = 0;						// Average of the averageWeights array
+		long average = 0;							// Average of the averageWeights array
 		long initialZeroPosition = 0;	// Average weight at start up
-		long currentZeroPosition = 0;	// Current zero position (opposite of tare weight; with added weight)
 		
 		// Unnormalised weight vars
 		long currentWeight = 0;
@@ -37,7 +36,7 @@ class Q2HX711
 		bool weightDetected = false;
 
 		// Setup vars
-		bool setupSensor = false;		// Flag for sensor to be setup
+		bool setupSensor = false;			// Flag for sensor to be setup
 		bool isSensorSetup = false;		// Flag for startup average completion
 
 		// Timing variables
@@ -60,10 +59,10 @@ class Q2HX711
 		void update();
 
 		// Get funcs
-		double getCurrentWeight();
+		//double getCurrentWeight();
 		double getHighestDetectedWeight();
 		void resetHighestDetectedWeight();
-		long getInitialZero();
+		//long getInitialZero();
 		//double getAverageWeight();
 
 		// Weight detection
