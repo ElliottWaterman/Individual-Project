@@ -25,12 +25,9 @@ void setup() {
     Serial.println("Cannot listen!");
   }
 
+  // Uncomment to send three SMS on after another
   //quickCommands();
-  SIM900.print(TEXT_MODE);
-  SIM900.print('\r');
 }
-
-#define TEXT_MODE                       "AT+CMGF=1"
 
 void loop() {
   readSIM();
@@ -94,10 +91,12 @@ void readSIM() {
 
 #define TEXT_MODE                       "AT+CMGF=1"
 #define TWILIO_PHONE_NUMBER             "AT+CMGS=\"+441233800093\""
-#define BECCA                           "AT+CMGS=\"+447510507599\""
 #define NUMBER_OF_MESSAGES              "+CMGS:"
 
 void quickCommands() {
+  //SIM900.print(TEXT_MODE);
+  //SIM900.print('\r');
+  
   SIM900.print(TWILIO_PHONE_NUMBER);  // Twilio phone number
   SIM900.print('\r');
 

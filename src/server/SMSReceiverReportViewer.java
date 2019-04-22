@@ -106,7 +106,8 @@ public class SMSReceiverReportViewer {
         });
         
         /**
-         * 
+         * Function to upload the storage file to the Google Drive service.
+         * Names the file after the current date and time.
          */
         get("/upload", (req, res) -> {
         	// Upload the SBSBS.csv report file to Google Drive

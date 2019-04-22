@@ -26,6 +26,7 @@
 
 
 /* CONSTANTS */
+//Digital pins
 const byte PIN_WAKE_UP =      2;  //Interrupt pin (or #3) to wake up the Arduino
 const byte PIN_DHT22 =        3;  //Digital pin connected to the DHT22 module
 const byte PIN_RFID_POWER =   4;  //Digital pin connected BJT/MOSFET switch to power module
@@ -38,8 +39,9 @@ const byte PIN_RFID_TX =      9;  //Transmitting pin on Arduino (use rx wire on 
 //const byte PIN_SD_MOSI =    11;
 //const byte PIN_SD_MISO =    12;
 //const byte PIN_SD_SCK =     13;
-const byte PIN_SEND_SMS =     A0; //Read button input to send SMS (DEBUG)
 
+//Analogue pins
+const byte PIN_SEND_SMS =     A0; //Read button input to send SMS (DEBUG)
 const byte PIN_SD_SS =        A1; //Digital pin connected to the SD module (the hardware SS pin must be kept as an output)
 const byte PIN_HX711_DATA =   A2; //Weight sensor data pin
 const byte PIN_HX711_CLOCK =  A3; //Weight sensor clock pin
